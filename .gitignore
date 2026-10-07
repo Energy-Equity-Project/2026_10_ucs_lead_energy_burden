@@ -1,0 +1,21 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+
+# OS
+.DS_Store
+
+# Generated files and data — never committed. Deliveries are archived in
+# s3://eep-data-requests instead. Only the partner-facing README is tracked.
+outputs/*
+!outputs/README.md
+temp/
+data/*
+!data/README.md
+*.xlsx
+*.csv
+*.parquet
+*.zip

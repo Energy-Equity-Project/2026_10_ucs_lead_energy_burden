@@ -1,0 +1,12 @@
+# Copy to .Renviron (gitignored) and fill in the paths, then restart R.
+# Relative paths resolve from the repo root, where R must be started.
+
+# DOE LEAD 2022 cohort-level national file (census_tract-lead-2022-national.parquet)
+LEAD_NATIONAL_FILE=
+
+# DOE LEAD 2022 tract energy-burden rollup (census_tract-lead-2022-energy-burden.parquet),
+# used only for the regression check
+LEAD_ROLLUP_FILE=
+
+# Folder the build writes the CSVs to
+OUTPUT_DIR=

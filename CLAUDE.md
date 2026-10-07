@@ -29,6 +29,10 @@ active
 ## Key Files
 - `R/01_build.R` builds both files in `outputs/`. It reads the cohort file through arrow, aggregates
   during the scan and runs `stopifnot()` checks before writing. It takes a few seconds.
+- `.Renviron` holds every file path the script uses: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE` and
+  `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
+  it even when force-added; the hook is local and must be reinstalled after a fresh clone.
+  `.Renviron.example` is the committed template. Keep file paths out of the R code.
 - `outputs/README.md` is the partner-facing data dictionary and ships inside the delivery zip.
 
 ## Method notes

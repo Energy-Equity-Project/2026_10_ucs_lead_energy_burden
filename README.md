@@ -41,8 +41,12 @@ weighted mean drops, and they differ by at most 0.0013 percentage points.
 
 ## How to rebuild
 
-1. Open `2026_10_ucs_lead_energy_burden.Rproj`, or work from the repo root.
-2. Run `R/01_build.R`. It writes both CSVs to `outputs/` and stops if any check fails.
+1. Copy `.Renviron.example` to `.Renviron` and fill in the three paths. Relative paths resolve
+   from the repo root. `.Renviron` is gitignored, and a local pre-commit hook blocks it as well.
+2. Open `2026_10_ucs_lead_energy_burden.Rproj`, or start R from the repo root, so that R reads
+   `.Renviron` at startup. Restart R after editing it.
+3. Run `R/01_build.R`. It writes both CSVs to `OUTPUT_DIR` and stops if a path is missing or any
+   check fails.
 
 ## Deliveries
 

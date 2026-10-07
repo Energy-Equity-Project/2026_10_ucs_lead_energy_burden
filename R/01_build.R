@@ -13,17 +13,27 @@
 #      energy_burden = 100 * total_utility_cost / weighted_income
 #
 # Run from the repo root: Rscript R/01_build.R
+# File paths come from the repo's .Renviron (gitignored); copy .Renviron.example
+# to .Renviron and fill it in before the first run.
 
 # Load required packages; arrow is namespace-qualified because it masks dplyr verbs
 library(tidyverse)
 
-# Shared cleaned data (paths are relative to the repo root)
-cleaned_dir <- "../../Cleaned_Data"
-output_dir <- "outputs"
-run_date <- format(Sys.Date(), "%d-%m-%Y")
+# Retrieve file paths from environment variables set in .Renviron
+path_vars <- c("LEAD_NATIONAL_FILE", "LEAD_ROLLUP_FILE", "OUTPUT_DIR")
+paths <- Sys.getenv(path_vars)
 
-lead_national_file <- file.path(cleaned_dir, "doe/lead/census_tract-lead-2022-national.parquet")
-lead_rollup_file <- file.path(cleaned_dir, "doe/lead/census_tract-lead-2022-energy-burden.parquet")
+if (any(paths == "")) {
+  stop(
+    "Missing in .Renviron: ", paste(path_vars[paths == ""], collapse = ", "),
+    ". Copy .Renviron.example to .Renviron, fill it in and restart R."
+  )
+}
+
+lead_national_file <- paths[["LEAD_NATIONAL_FILE"]]
+lead_rollup_file <- paths[["LEAD_ROLLUP_FILE"]]
+output_dir <- paths[["OUTPUT_DIR"]]
+run_date <- format(Sys.Date(), "%d-%m-%Y")
 
 # A few tiny tracts carry a degenerate modeled income (~1e-10) that would give
 # burdens near 1e13. Same floor as the shared tract rollup, so the two agree.

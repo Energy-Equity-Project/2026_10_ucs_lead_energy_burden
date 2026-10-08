@@ -2,8 +2,8 @@
 
 ## Purpose
 The Union of Concerned Scientists (UCS) asked for national energy burden data. EEP is sending
-two CSVs built from DOE LEAD 2022: one row per census tract (84,280) and one row per county (3,222),
-covering the 50 states, DC and Puerto Rico.
+three CSVs built from DOE LEAD 2022 (the FPL file, not AMI): one row per census tract (84,280), one
+row per county (3,222) and one row per state (52), covering the 50 states, DC and Puerto Rico.
 
 ## Type
 Data request. This repo CONSUMES data from the shared Data/ and Cleaned_Data/ folders
@@ -27,7 +27,7 @@ active
   tract rollup. It is read only for the regression check and does not feed the outputs.
 
 ## Key Files
-- `R/01_build.R` builds both files in `outputs/`. It reads the cohort file through arrow, aggregates
+- `R/01_build.R` builds all three files in `outputs/`. It reads the cohort file through arrow, aggregates
   during the scan and runs `stopifnot()` checks before writing. It takes a few seconds.
 - `.Renviron` holds every file path the script uses: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE` and
   `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
@@ -48,7 +48,10 @@ active
   with negative valid-unit weights, which are raw LEAD artifacts. The build drops these rows on
   purpose; the shared rollup's ratio of sums keeps them. The gap is at most 0.0013 percentage points.
   Every other tract matches to floating-point precision (checked < 1e-9; observed ~1e-16).
-- Counties are built from the cohort rows, not from the tract table. Connecticut appears as its 9
+- Counties and states are built from the cohort rows, not from the tract or county table. The build
+  re-weights the county table up to states as a check (< 1e-9 relative). The state file has only
+  the averages and `total_households`, without the `*_households` weight columns, and adds
+  `state_abbr` and `state_name` from `tidycensus::fips_codes`. Connecticut appears as its 9
   planning regions (09110–09190).
 
 ## Outputs and Delivery

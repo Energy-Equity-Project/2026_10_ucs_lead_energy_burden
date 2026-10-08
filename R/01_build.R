@@ -1,11 +1,13 @@
 # Build every file in outputs/ for the UCS DOE LEAD 2022 energy burden request.
 # Reads only cleaned, shared data; never copy shared data into this repo.
 #
-# Produces two national tables (50 states + DC + PR) from the cohort-level LEAD file:
+# Produces three national tables (50 states + DC + PR) from the cohort-level LEAD
+# file (the FPL file), each aggregated directly from the cohort rows:
 #   dd-mm-yyyy-ucs-lead-2022-tract-energy-burden.csv   one row per census tract
 #   dd-mm-yyyy-ucs-lead-2022-county-energy-burden.csv  one row per county
+#   dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv   one row per state
 #
-# Method, per tract or county:
+# Method, per tract, county or state:
 #   1. weighted means of income, electricity, gas and other fuel cost, each weighted
 #      by its own valid-units column (e.g. electricity cost by elep_valid_units)
 #   2. total_households = sum of the generic `units` column
@@ -122,6 +124,21 @@ county_energy_burden <- summarize_lead(lead_cohorts, state, county_fip) %>%
   arrange(county_geoid) %>%
   select(state_fips, county_geoid, all_of(value_columns))
 
+# State level, also built from the cohorts directly. The partner asked for the
+# averages and household count only, so the per-measure weight columns are left out.
+state_names <- tidycensus::fips_codes %>%
+  distinct(state_fips = state_code, state_abbr = state, state_name)
+
+state_energy_burden <- summarize_lead(lead_cohorts, state) %>%
+  mutate(state_fips = sprintf("%02d", state)) %>%
+  left_join(state_names, by = "state_fips") %>%
+  arrange(state_fips) %>%
+  select(
+    state_fips, state_abbr, state_name, total_households,
+    weighted_income, weighted_electricity_cost, weighted_gas_cost,
+    weighted_other_fuel_cost, total_utility_cost, energy_burden
+  )
+
 # Checks -----------------------------------------------------------------------
 
 # A missing household count or weight would silently blank out its whole group
@@ -148,7 +165,47 @@ stopifnot(
   # Every county's tracts share its state, so county GEOIDs nest inside states
   all(str_sub(county_energy_burden$county_geoid, 1, 2) == county_energy_burden$state_fips),
   abs(sum(tract_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households,
-  abs(sum(county_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households
+  abs(sum(county_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households,
+  nrow(state_energy_burden) == 52,
+  !anyDuplicated(state_energy_burden$state_fips),
+  !anyNA(state_energy_burden$state_abbr),
+  !anyNA(state_energy_burden$energy_burden),
+  abs(sum(state_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households
+)
+
+# The state table comes from the cohorts, so re-weighting the county table up to
+# states is an independent check of the grouping. A county's weighted mean times
+# its valid units is its weighted sum, so the two must agree to floating-point noise.
+state_check <- county_energy_burden %>%
+  group_by(state_fips) %>%
+  summarize(
+    county_households = sum(total_households),
+    county_income = sum(weighted_income * income_households, na.rm = TRUE) / sum(income_households),
+    county_electricity = sum(weighted_electricity_cost * electric_households, na.rm = TRUE) / sum(electric_households),
+    county_gas = sum(weighted_gas_cost * gas_households, na.rm = TRUE) / sum(gas_households),
+    county_other_fuel = sum(weighted_other_fuel_cost * other_fuel_households, na.rm = TRUE) / sum(other_fuel_households)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    county_burden = 100 * (coalesce(county_electricity, 0) + coalesce(county_gas, 0) +
+      coalesce(county_other_fuel, 0)) / county_income
+  ) %>%
+  inner_join(state_energy_burden, by = "state_fips")
+
+# Largest relative difference; Inf if one side is missing where the other is not
+relative_gap <- function(x, y) {
+  if (!identical(is.na(x), is.na(y))) return(Inf)
+  max(abs(x - y) / abs(y), 0, na.rm = TRUE)
+}
+
+stopifnot(
+  nrow(state_check) == 52,
+  relative_gap(state_check$county_households, state_check$total_households) < 1e-9,
+  relative_gap(state_check$county_income, state_check$weighted_income) < 1e-9,
+  relative_gap(state_check$county_electricity, state_check$weighted_electricity_cost) < 1e-9,
+  relative_gap(state_check$county_gas, state_check$weighted_gas_cost) < 1e-9,
+  relative_gap(state_check$county_other_fuel, state_check$weighted_other_fuel_cost) < 1e-9,
+  relative_gap(state_check$county_burden, state_check$energy_burden) < 1e-9
 )
 
 # Regression against the shared tract rollup, an independent implementation of the
@@ -193,6 +250,12 @@ message(
 message("Tracts with NA burden: ", sum(is.na(tract_energy_burden$energy_burden)))
 message("Counties with NA burden: ", sum(is.na(county_energy_burden$energy_burden)))
 
+state_range <- state_energy_burden %>% arrange(energy_burden) %>% slice(1, n())
+message(
+  "State burden range: ", state_range$state_abbr[1], " ", round(state_range$energy_burden[1], 2),
+  "% to ", state_range$state_abbr[2], " ", round(state_range$energy_burden[2], 2), "%"
+)
+
 # The docs cite this count; confirm it after every rebuild
 high_burden_tracts <- tract_energy_burden %>% filter(energy_burden > 20)
 message(
@@ -213,6 +276,13 @@ write.csv(
 write.csv(
   county_energy_burden,
   file.path(output_dir, paste0(run_date, "-ucs-lead-2022-county-energy-burden.csv")),
+  row.names = FALSE,
+  na = ""
+)
+
+write.csv(
+  state_energy_burden,
+  file.path(output_dir, paste0(run_date, "-ucs-lead-2022-state-energy-burden.csv")),
   row.names = FALSE,
   na = ""
 )

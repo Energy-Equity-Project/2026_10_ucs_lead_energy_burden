@@ -1,4 +1,4 @@
-# Energy burden by census tract and county, DOE LEAD 2022
+# Energy burden by census tract, county and state, DOE LEAD 2022
 
 Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientists, [delivery date].
 
@@ -8,18 +8,24 @@ Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientist
 |---|---|
 | `dd-mm-yyyy-ucs-lead-2022-tract-energy-burden.csv` | One row per census tract, 84,280 rows |
 | `dd-mm-yyyy-ucs-lead-2022-county-energy-burden.csv` | One row per county or county equivalent, 3,222 rows |
+| `dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv` | One row per state, 52 rows |
 
-Both files cover the 50 states, the District of Columbia and Puerto Rico. Each date prefix is the
-day the file was built.
+All three files cover the 50 states, the District of Columbia and Puerto Rico. Each date prefix is
+the day the file was built.
 
 ## Data dictionary
 
-Both files share the same columns. The tract file adds `tract_geoid`.
+The tract and county files share the same columns, and the tract file adds `tract_geoid`. The state
+file has `state_fips`, `state_abbr`, `state_name`, `total_households` and the six dollar and burden
+columns, from `weighted_income` to `energy_burden`. It does not have the geography codes below the
+state level or the four `*_households` weight columns.
 
 | Column | Type | Description | Units |
 |---|---|---|---|
 | `state_fips` | text | 2-digit state FIPS code | — |
-| `county_geoid` | text | 5-digit county FIPS code (state + county) | — |
+| `state_abbr` | text | 2-letter postal abbreviation (state file only) | — |
+| `state_name` | text | State name (state file only) | — |
+| `county_geoid` | text | 5-digit county FIPS code (state + county; tract and county files) | — |
 | `tract_geoid` | text | 11-digit census tract GEOID (tract file only) | — |
 | `total_households` | decimal | Estimated total households (housing units) | households |
 | `income_households` | decimal | Households with valid income data, used as the weight for `weighted_income` | households |
@@ -49,7 +55,7 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 
 - **How the averages are built.** DOE LEAD reports modeled estimates for groups of households
   within each census tract. The groups are defined by poverty level, tenure, building age,
-  building type and heating fuel. Within each tract or county:
+  building type and heating fuel. Within each tract, county or state:
   - Income and each fuel cost are averaged across these groups, weighted by the number of
     households with valid data for that measure.
   - Total utility cost is the sum of the three fuel costs.
@@ -57,6 +63,9 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 - **Energy burden is an area-level ratio.** It divides average energy cost by average income, as
   in DOE's LEAD Tool. It is not the average of individual household burdens, which would generally
   be higher because low-income households carry the highest burdens.
+- **State values come from the household groups, not from the tract or county files.** Each state
+  average is computed from all LEAD household groups in the state, in the same way as the tract and
+  county averages. A state's burden is therefore not the average of its tract or county burdens.
 - **Missing fuels count as $0.** If no households in an area have valid data for a fuel, that
   fuel's cost column is blank, and it adds $0 to `total_utility_cost`. If no fuel has valid data,
   `total_utility_cost` is blank too.
@@ -79,6 +88,6 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 
 ## Suggested citation
 
-Energy Equity Project. (2026). Energy burden by census tract and county, DOE LEAD 2022. Prepared for
+Energy Equity Project. (2026). Energy burden by census tract, county and state, DOE LEAD 2022. Prepared for
 the Union of Concerned Scientists. Underlying data: U.S. Department of Energy, Low-Income Energy
 Affordability Data (LEAD) Tool, 2022.

@@ -8,7 +8,7 @@
 | Contact | [name, role, email] |
 | Received | 2026-10 |
 | Due | [yyyy-mm-dd] |
-| Ask | National energy burden from DOE LEAD 2022 at the census tract and county levels |
+| Ask | National energy burden from DOE LEAD 2022 at the census tract, county and state levels |
 
 ## Data sources
 
@@ -21,7 +21,7 @@
 
 The cohort file has one row per tract × poverty band × tenure/year built × building type ×
 heating fuel. For each census tract, and separately for each county (the first 5 digits of the
-tract GEOID), the build script:
+tract GEOID) and each state, the build script works from the cohort rows:
 
 1. Takes the weighted mean of each average, using that measure's own valid-units column as the
    weight:
@@ -42,13 +42,17 @@ cohort rows with negative weights, which the build drops on purpose, and they di
 0.0013 percentage points. The build stops if any cohort row has a missing household count or weight.
 Missing values are written as blank cells.
 
+The state file is not rolled up from the tract or county files. As a check, the build re-weights the
+county table up to states, and every state value must match to < 1e-9 relative. State names and
+abbreviations come from `tidycensus::fips_codes`.
+
 ## How to rebuild
 
 1. Copy `.Renviron.example` to `.Renviron` and fill in the three paths. Relative paths resolve
    from the repo root. `.Renviron` is gitignored, and a local pre-commit hook blocks it as well.
 2. Open `2026_10_ucs_lead_energy_burden.Rproj`, or start R from the repo root, so that R reads
    `.Renviron` at startup. Restart R after editing it.
-3. Run `R/01_build.R`. It writes both CSVs to `OUTPUT_DIR` and stops if a path is missing or any
+3. Run `R/01_build.R`. It writes all three CSVs to `OUTPUT_DIR` and stops if a path is missing or any
    check fails.
 
 ## Deliveries

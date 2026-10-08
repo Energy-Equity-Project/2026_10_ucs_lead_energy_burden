@@ -8,14 +8,16 @@
 | Contact | [name, role, email] |
 | Received | 2026-10 |
 | Due | [yyyy-mm-dd] |
-| Ask | National energy burden from DOE LEAD 2022 at the census tract, county and state levels, each overall and by Federal Poverty Level band |
+| Ask | National energy burden from DOE LEAD 2022 at the census tract, county and state levels, each overall and by Federal Poverty Level band, plus the same three levels by Area Median Income band |
 
 ## Data sources
 
 | Dataset | Path | Version / vintage | Notes |
 |---|---|---|---|
-| DOE LEAD 2022 (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-national.parquet` | 2022 release, downloaded 2025-08-06 | Only input to the outputs |
-| DOE LEAD 2022 (tract rollup) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-energy-burden.parquet` | same | Regression check only |
+| DOE LEAD 2022 FPL (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-national.parquet` | 2022 release, downloaded 2025-08-06 | Only input to the six FPL-file outputs |
+| DOE LEAD 2022 FPL (tract rollup) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-energy-burden.parquet` | same | Regression check only |
+| DOE LEAD 2022 AMI (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-national.parquet` | same download, cleaned 2026-10-08 | Only input to the three AMI outputs |
+| DOE LEAD 2022 AMI (tract rollup) | `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-energy-burden.parquet` | same | Regression check only |
 
 ## Method
 
@@ -55,18 +57,29 @@ after the tract or county GEOID, and are grouped by that GEOID and band. Every a
 bands: a band with no LEAD cohorts in the area (754 tract rows in 358 tracts, 2 county rows) is filled
 in with 0 households and `NA` averages, cost and burden. The build checks both counts.
 
+The three AMI files (`R/02_build_ami.R`) apply the same method to LEAD's AMI cohort file, grouped by
+`ami150` (six bands, `0-30%` to `150%+`), with `ami` in place of `fpl`. The two scripts share their
+helpers through `R/functions.R`. The AMI file is a separate LEAD run with its own household counts.
+It holds 127,451,762 households against 126,917,028 in the FPL file, and 6,258 tracts differ by
+more than 0.1%, mostly in CA, NY, MA, HI and CT. The AMI bands therefore cannot be checked against
+the FPL-based overall files. Instead, the build re-weights each AMI band table up to overall AMI
+tables that it builds in memory, and checks the AMI tract totals against the shared AMI rollup.
+Those tract totals match exactly, except in 4,441 tracts holding the AMI file's 7,992
+negative-weight cohort rows (all in `150%+`), where the gap is at most 0.083 percentage points.
+Every area gets all six bands; the empty ones are 935 tract rows and 1 county row.
+
 Arrow sums the cohort rows in parallel, so a rebuild can change the county, county × FPL, state and
 state × FPL values in the last digits (observed ≤ 1e-13 relative). The tract and tract × FPL files
 have been byte-identical across rebuilds.
 
 ## How to rebuild
 
-1. Copy `.Renviron.example` to `.Renviron` and fill in the three paths. Relative paths resolve
+1. Copy `.Renviron.example` to `.Renviron` and fill in the five paths. Relative paths resolve
    from the repo root. `.Renviron` is gitignored, and a local pre-commit hook blocks it as well.
 2. Open `2026_10_ucs_lead_energy_burden.Rproj`, or start R from the repo root, so that R reads
    `.Renviron` at startup. Restart R after editing it.
-3. Run `R/01_build.R`. It writes all six CSVs to `OUTPUT_DIR` and stops if a path is missing or any
-   check fails.
+3. Run `R/01_build.R`, which writes the six FPL-file CSVs, then `R/02_build_ami.R`, which writes the
+   three AMI CSVs. Both write to `OUTPUT_DIR`, and each stops if a path is missing or any check fails.
 
 ## Deliveries
 

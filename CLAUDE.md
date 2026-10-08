@@ -2,9 +2,11 @@
 
 ## Purpose
 The Union of Concerned Scientists (UCS) asked for national energy burden data. EEP is sending
-six CSVs built from DOE LEAD 2022 (the FPL file, not AMI): one row per census tract (84,280), per
-tract × FPL band (421,400), per county (3,222), per county × FPL band (16,110), per state (52) and per
-state × FPL band (260), covering the 50 states, DC and Puerto Rico.
+nine CSVs built from DOE LEAD 2022, covering the 50 states, DC and Puerto Rico:
+- Six from the FPL file: one row per census tract (84,280), per tract × FPL band (421,400), per county
+  (3,222), per county × FPL band (16,110), per state (52) and per state × FPL band (260).
+- Three from the AMI file: one row per tract × AMI band (505,680), per county × AMI band (19,332) and
+  per state × AMI band (312). These are in addition to the FPL band files, not a replacement.
 
 ## Type
 Data request. This repo CONSUMES data from the shared Data/ and Cleaned_Data/ folders
@@ -23,15 +25,23 @@ active
 
 ## Data Dependencies
 - Cleaned: `../../Cleaned_Data/doe/lead/census_tract-lead-2022-national.parquet`. Cohort-level
-  DOE LEAD 2022 (download 2025-08-06), 20,272,616 rows. This is the only input to the outputs.
-- Cleaned: `../../Cleaned_Data/doe/lead/census_tract-lead-2022-energy-burden.parquet`. The shared
-  tract rollup. It is read only for the regression check and does not feed the outputs.
+  DOE LEAD 2022 FPL file (download 2025-08-06), 20,272,616 rows. The only input to the six FPL-file outputs.
+- Cleaned: `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-national.parquet`. Cohort-level
+  DOE LEAD 2022 AMI file (same download, cleaned 2026-10-08), 24,817,921 rows. The only input to the
+  three AMI outputs.
+- Cleaned: `../../Cleaned_Data/doe/lead/census_tract-lead-2022-energy-burden.parquet` and
+  `census_tract-ami-lead-2022-energy-burden.parquet`. The shared FPL and AMI tract rollups. They are
+  read only for the regression checks and do not feed the outputs.
 
 ## Key Files
-- `R/01_build.R` builds all six files in `outputs/`. It reads the cohort file through arrow, aggregates
-  during the scan and runs `stopifnot()` checks before writing. It takes about 10 seconds.
-- `.Renviron` holds every file path the script uses: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE` and
-  `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
+- `R/functions.R` holds the helpers both builds share: `summarize_lead()`, `add_totals()`,
+  `complete_bands()`, the GEOID formatters, `reweight_to()`, `check_gap()`, `cohort_audit()`,
+  `rollup_regression()` and `write_output()`. Change the method here, once, for both band families.
+- `R/01_build.R` builds the six FPL-file outputs. `R/02_build_ami.R` builds the three AMI outputs. Each
+  reads its cohort file through arrow, aggregates during the scan and runs `stopifnot()` checks before
+  writing. They are independent, and each takes 10–20 seconds.
+- `.Renviron` holds every file path the scripts use: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE`,
+  `LEAD_AMI_NATIONAL_FILE`, `LEAD_AMI_ROLLUP_FILE` and `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
   it even when force-added; the hook is local and must be reinstalled after a fresh clone.
   `.Renviron.example` is the committed template. Keep file paths out of the R code.
 - `outputs/README.md` is the partner-facing data dictionary and ships inside the delivery zip.
@@ -56,13 +66,26 @@ active
   `state_abbr` and `state_name` from `tidycensus::fips_codes`. The state × FPL file
   (`...-state-energy-burden-fpl.csv`) has the same columns plus `fpl` (LEAD's `fpl150` labels,
   sorted by a factor from `0-100%` to `400%+`). The tract × FPL and county × FPL files have the
-  tract and county columns plus `fpl` after the GEOID. `complete_fpl()` gives every area all five
+  tract and county columns plus `fpl` after the GEOID. `complete_bands()` gives every area all five
   bands; missing bands (754 tract rows, 2 county rows, both counts checked) get 0 in the `*_households`
   columns and `NA` values. Connecticut appears as its 9 planning regions
   (09110–09190).
+- **AMI files** (`...-energy-burden-ami.csv`) mirror the three FPL band files with `ami` in place of
+  `fpl` (LEAD's `ami150` labels, sorted by a factor from `0-30%` to `150%+`). Things that differ from FPL:
+  - The AMI file is a separate LEAD run with its own household counts. It holds 127,451,762 households
+    against FPL's 126,917,028, and 6,258 tracts differ by > 0.1% (mostly CA, NY, MA, HI and CT). AMI bands
+    therefore cannot be checked against the shipped FPL-based overall files. `02_build_ami.R` builds
+    overall AMI tract, county and state tables in memory, never written, and re-weights each band table
+    up to them (< 1e-9).
+  - 7,992 AMI cohort rows have negative valid-unit weights, all in `150%+`, in 4,441 tracts. Units are
+    never negative. The regression against the AMI rollup is exact elsewhere (~1e-16). In those tracts
+    it is checked loosely (< 1e-3 as a fraction), and the observed max is 0.083 percentage points.
+  - Empty bands: 935 tract rows (442 tracts) and 1 county row (48261, `0-30%`), both counts checked.
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × FPL,
   state and state × FPL CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
-  numerically, not byte for byte. The tract and tract × FPL files have been byte-identical.
+  numerically, not byte for byte. The tract and tract × FPL files have been byte-identical. Moving the
+  helpers into `R/functions.R` (2026-10-08) left the tract files byte-identical and the others within
+  9.4e-14 relative.
 
 ## Outputs and Delivery
 - `outputs/` is gitignored except `README.md`; files there are temporary.

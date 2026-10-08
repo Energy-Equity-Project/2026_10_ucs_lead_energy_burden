@@ -8,7 +8,7 @@
 | Contact | [name, role, email] |
 | Received | 2026-10 |
 | Due | [yyyy-mm-dd] |
-| Ask | National energy burden from DOE LEAD 2022 at the census tract, county and state levels |
+| Ask | National energy burden from DOE LEAD 2022 at the census tract, county and state levels, plus state by Federal Poverty Level band |
 
 ## Data sources
 
@@ -21,7 +21,8 @@
 
 The cohort file has one row per tract × poverty band × tenure/year built × building type ×
 heating fuel. For each census tract, and separately for each county (the first 5 digits of the
-tract GEOID) and each state, the build script works from the cohort rows:
+tract GEOID), each state and each state × FPL band (`fpl150`), the build script works from the
+cohort rows:
 
 1. Takes the weighted mean of each average, using that measure's own valid-units column as the
    weight:
@@ -43,8 +44,14 @@ cohort rows with negative weights, which the build drops on purpose, and they di
 Missing values are written as blank cells.
 
 The state file is not rolled up from the tract or county files. As a check, the build re-weights the
-county table up to states, and every state value must match to < 1e-9 relative. State names and
+county table and the state × FPL table up to states, and every state value must match to < 1e-9
+relative. The state × FPL file has the state file's columns plus `fpl`, which keeps LEAD's five band
+labels in order from lowest to highest income; it has 260 rows (52 states × 5 bands). State names and
 abbreviations come from `tidycensus::fips_codes`.
+
+Arrow sums the cohort rows in parallel, so a rebuild can change the county, state and state × FPL
+values in the last digits (observed ≤ 2e-14 relative). The tract file has been byte-identical
+across rebuilds.
 
 ## How to rebuild
 
@@ -52,7 +59,7 @@ abbreviations come from `tidycensus::fips_codes`.
    from the repo root. `.Renviron` is gitignored, and a local pre-commit hook blocks it as well.
 2. Open `2026_10_ucs_lead_energy_burden.Rproj`, or start R from the repo root, so that R reads
    `.Renviron` at startup. Restart R after editing it.
-3. Run `R/01_build.R`. It writes all three CSVs to `OUTPUT_DIR` and stops if a path is missing or any
+3. Run `R/01_build.R`. It writes all four CSVs to `OUTPUT_DIR` and stops if a path is missing or any
    check fails.
 
 ## Deliveries

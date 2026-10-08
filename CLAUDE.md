@@ -2,8 +2,9 @@
 
 ## Purpose
 The Union of Concerned Scientists (UCS) asked for national energy burden data. EEP is sending
-three CSVs built from DOE LEAD 2022 (the FPL file, not AMI): one row per census tract (84,280), one
-row per county (3,222) and one row per state (52), covering the 50 states, DC and Puerto Rico.
+four CSVs built from DOE LEAD 2022 (the FPL file, not AMI): one row per census tract (84,280), one
+row per county (3,222), one row per state (52) and one row per state × FPL band (260), covering the
+50 states, DC and Puerto Rico.
 
 ## Type
 Data request. This repo CONSUMES data from the shared Data/ and Cleaned_Data/ folders
@@ -27,7 +28,7 @@ active
   tract rollup. It is read only for the regression check and does not feed the outputs.
 
 ## Key Files
-- `R/01_build.R` builds all three files in `outputs/`. It reads the cohort file through arrow, aggregates
+- `R/01_build.R` builds all four files in `outputs/`. It reads the cohort file through arrow, aggregates
   during the scan and runs `stopifnot()` checks before writing. It takes a few seconds.
 - `.Renviron` holds every file path the script uses: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE` and
   `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
@@ -48,11 +49,17 @@ active
   with negative valid-unit weights, which are raw LEAD artifacts. The build drops these rows on
   purpose; the shared rollup's ratio of sums keeps them. The gap is at most 0.0013 percentage points.
   Every other tract matches to floating-point precision (checked < 1e-9; observed ~1e-16).
-- Counties and states are built from the cohort rows, not from the tract or county table. The build
-  re-weights the county table up to states as a check (< 1e-9 relative). The state file has only
-  the averages and `total_households`, without the `*_households` weight columns, and adds
-  `state_abbr` and `state_name` from `tidycensus::fips_codes`. Connecticut appears as its 9
-  planning regions (09110–09190).
+- Counties, states and state × FPL bands are built from the cohort rows, not from the tract or
+  county table. The build re-weights both the county table and the state × FPL table up to states
+  as a check (< 1e-9 relative), through `reweight_to_state()`. The state file has only the
+  averages and `total_households`, without the `*_households` weight columns, and adds
+  `state_abbr` and `state_name` from `tidycensus::fips_codes`. The state × FPL file
+  (`...-state-energy-burden-fpl.csv`) has the same columns plus `fpl` (LEAD's `fpl150` labels,
+  sorted by a factor from `0-100%` to `400%+`). Connecticut appears as its 9 planning regions
+  (09110–09190).
+- Arrow's parallel sums are not order-deterministic, so rebuilds change the county, state and
+  state × FPL CSVs in the last digits (≤ 2e-14 relative). Compare rebuilds numerically, not
+  byte for byte.
 
 ## Outputs and Delivery
 - `outputs/` is gitignored except `README.md`; files there are temporary.

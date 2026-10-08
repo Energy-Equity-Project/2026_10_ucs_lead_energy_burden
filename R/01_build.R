@@ -1,13 +1,14 @@
 # Build every file in outputs/ for the UCS DOE LEAD 2022 energy burden request.
 # Reads only cleaned, shared data; never copy shared data into this repo.
 #
-# Produces three national tables (50 states + DC + PR) from the cohort-level LEAD
+# Produces four national tables (50 states + DC + PR) from the cohort-level LEAD
 # file (the FPL file), each aggregated directly from the cohort rows:
-#   dd-mm-yyyy-ucs-lead-2022-tract-energy-burden.csv   one row per census tract
-#   dd-mm-yyyy-ucs-lead-2022-county-energy-burden.csv  one row per county
-#   dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv   one row per state
+#   dd-mm-yyyy-ucs-lead-2022-tract-energy-burden.csv      one row per census tract
+#   dd-mm-yyyy-ucs-lead-2022-county-energy-burden.csv     one row per county
+#   dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv      one row per state
+#   dd-mm-yyyy-ucs-lead-2022-state-energy-burden-fpl.csv  one row per state x FPL band
 #
-# Method, per tract, county or state:
+# Method, per tract, county, state or state x FPL band:
 #   1. weighted means of income, electricity, gas and other fuel cost, each weighted
 #      by its own valid-units column (e.g. electricity cost by elep_valid_units)
 #   2. total_households = sum of the generic `units` column
@@ -45,7 +46,7 @@ income_floor <- 1e-9
 # the 20M cohort rows during the scan
 lead_cohorts <- arrow::open_dataset(lead_national_file) %>%
   select(
-    state, fip, units,
+    state, fip, fpl150, units,
     avg_income, avg_electricity_cost, avg_gas_cost, avg_other_fuel_cost,
     hincp_valid_units, elep_valid_units, gasp_valid_units, fulp_valid_units
   ) %>%
@@ -139,6 +140,27 @@ state_energy_burden <- summarize_lead(lead_cohorts, state) %>%
     weighted_other_fuel_cost, total_utility_cost, energy_burden
   )
 
+# State by FPL band, also built from the cohorts directly, with the state file's
+# columns plus the band. LEAD's band labels are kept; the factor orders them from
+# lowest to highest income. The full table keeps the weights for the check below.
+fpl_levels <- c("0-100%", "100-150%", "150-200%", "200-400%", "400%+")
+
+state_fpl_full <- summarize_lead(lead_cohorts, state, fpl150) %>%
+  mutate(
+    state_fips = sprintf("%02d", state),
+    fpl = factor(fpl150, levels = fpl_levels)
+  ) %>%
+  left_join(state_names, by = "state_fips") %>%
+  arrange(state_fips, fpl)
+
+state_fpl_energy_burden <- state_fpl_full %>%
+  mutate(fpl = as.character(fpl)) %>%
+  select(
+    state_fips, state_abbr, state_name, fpl, total_households,
+    weighted_income, weighted_electricity_cost, weighted_gas_cost,
+    weighted_other_fuel_cost, total_utility_cost, energy_burden
+  )
+
 # Checks -----------------------------------------------------------------------
 
 # A missing household count or weight would silently blank out its whole group
@@ -170,27 +192,36 @@ stopifnot(
   !anyDuplicated(state_energy_burden$state_fips),
   !anyNA(state_energy_burden$state_abbr),
   !anyNA(state_energy_burden$energy_burden),
-  abs(sum(state_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households
+  abs(sum(state_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households,
+  nrow(state_fpl_energy_burden) == 52 * length(fpl_levels),
+  !anyNA(state_fpl_full$fpl),
+  !anyDuplicated(state_fpl_energy_burden[c("state_fips", "fpl")]),
+  !anyNA(state_fpl_energy_burden$state_abbr),
+  !anyNA(state_fpl_energy_burden$energy_burden),
+  abs(sum(state_fpl_energy_burden$total_households) - cohort_households) < 1e-6 * cohort_households
 )
 
-# The state table comes from the cohorts, so re-weighting the county table up to
-# states is an independent check of the grouping. A county's weighted mean times
-# its valid units is its weighted sum, so the two must agree to floating-point noise.
-state_check <- county_energy_burden %>%
-  group_by(state_fips) %>%
-  summarize(
-    county_households = sum(total_households),
-    county_income = sum(weighted_income * income_households, na.rm = TRUE) / sum(income_households),
-    county_electricity = sum(weighted_electricity_cost * electric_households, na.rm = TRUE) / sum(electric_households),
-    county_gas = sum(weighted_gas_cost * gas_households, na.rm = TRUE) / sum(gas_households),
-    county_other_fuel = sum(weighted_other_fuel_cost * other_fuel_households, na.rm = TRUE) / sum(other_fuel_households)
-  ) %>%
-  ungroup() %>%
-  mutate(
-    county_burden = 100 * (coalesce(county_electricity, 0) + coalesce(county_gas, 0) +
-      coalesce(county_other_fuel, 0)) / county_income
-  ) %>%
-  inner_join(state_energy_burden, by = "state_fips")
+# The state table comes from the cohorts, so re-weighting the county table, or the
+# state x FPL table, up to states is an independent check of the grouping. A group's
+# weighted mean times its valid units is its weighted sum, so the two must agree to
+# floating-point noise.
+reweight_to_state <- function(df) {
+  df %>%
+    group_by(state_fips) %>%
+    summarize(
+      check_households = sum(total_households),
+      check_income = sum(weighted_income * income_households, na.rm = TRUE) / sum(income_households),
+      check_electricity = sum(weighted_electricity_cost * electric_households, na.rm = TRUE) / sum(electric_households),
+      check_gas = sum(weighted_gas_cost * gas_households, na.rm = TRUE) / sum(gas_households),
+      check_other_fuel = sum(weighted_other_fuel_cost * other_fuel_households, na.rm = TRUE) / sum(other_fuel_households)
+    ) %>%
+    ungroup() %>%
+    mutate(
+      check_burden = 100 * (coalesce(check_electricity, 0) + coalesce(check_gas, 0) +
+        coalesce(check_other_fuel, 0)) / check_income
+    ) %>%
+    inner_join(state_energy_burden, by = "state_fips")
+}
 
 # Largest relative difference; Inf if one side is missing where the other is not
 relative_gap <- function(x, y) {
@@ -198,14 +229,26 @@ relative_gap <- function(x, y) {
   max(abs(x - y) / abs(y), 0, na.rm = TRUE)
 }
 
+# Largest relative gap across households, the four averages and burden
+state_check_gap <- function(check) {
+  max(
+    relative_gap(check$check_households, check$total_households),
+    relative_gap(check$check_income, check$weighted_income),
+    relative_gap(check$check_electricity, check$weighted_electricity_cost),
+    relative_gap(check$check_gas, check$weighted_gas_cost),
+    relative_gap(check$check_other_fuel, check$weighted_other_fuel_cost),
+    relative_gap(check$check_burden, check$energy_burden)
+  )
+}
+
+county_state_check <- reweight_to_state(county_energy_burden)
+fpl_state_check <- reweight_to_state(state_fpl_full)
+
 stopifnot(
-  nrow(state_check) == 52,
-  relative_gap(state_check$county_households, state_check$total_households) < 1e-9,
-  relative_gap(state_check$county_income, state_check$weighted_income) < 1e-9,
-  relative_gap(state_check$county_electricity, state_check$weighted_electricity_cost) < 1e-9,
-  relative_gap(state_check$county_gas, state_check$weighted_gas_cost) < 1e-9,
-  relative_gap(state_check$county_other_fuel, state_check$weighted_other_fuel_cost) < 1e-9,
-  relative_gap(state_check$county_burden, state_check$energy_burden) < 1e-9
+  nrow(county_state_check) == 52,
+  nrow(fpl_state_check) == 52,
+  state_check_gap(county_state_check) < 1e-9,
+  state_check_gap(fpl_state_check) < 1e-9
 )
 
 # Regression against the shared tract rollup, an independent implementation of the
@@ -256,6 +299,17 @@ message(
   "% to ", state_range$state_abbr[2], " ", round(state_range$energy_burden[2], 2), "%"
 )
 
+# Burden should fall as income rises; print the spread across states for each band
+state_fpl_energy_burden %>%
+  group_by(fpl = factor(fpl, levels = fpl_levels)) %>%
+  summarize(
+    min = round(min(energy_burden), 2),
+    median = round(median(energy_burden), 2),
+    max = round(max(energy_burden), 2)
+  ) %>%
+  ungroup() %>%
+  print()
+
 # The docs cite this count; confirm it after every rebuild
 high_burden_tracts <- tract_energy_burden %>% filter(energy_burden > 20)
 message(
@@ -283,6 +337,13 @@ write.csv(
 write.csv(
   state_energy_burden,
   file.path(output_dir, paste0(run_date, "-ucs-lead-2022-state-energy-burden.csv")),
+  row.names = FALSE,
+  na = ""
+)
+
+write.csv(
+  state_fpl_energy_burden,
+  file.path(output_dir, paste0(run_date, "-ucs-lead-2022-state-energy-burden-fpl.csv")),
   row.names = FALSE,
   na = ""
 )

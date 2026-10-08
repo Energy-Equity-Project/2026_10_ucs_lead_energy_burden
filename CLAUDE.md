@@ -40,12 +40,14 @@ active
   `sum(x * w) / sum(w)` so arrow can compute it. Every cost is weighted by its own valid-units
   column. `total_households` is `sum(units)`.
 - After `ungroup()`, `total_utility_cost` is electricity + gas + other fuel, with a missing fuel
-  counted as $0. `energy_burden = 100 * total_utility_cost / weighted_income`, and it is `NA` when
-  income is under `1e-9`. Both rules match the shared rollup.
+  counted as $0; it is `NA` when no fuel has valid units. `energy_burden = 100 * total_utility_cost /
+  weighted_income`, and it is `NA` when income is under `1e-9`. Both rules match the shared rollup.
+- Weights are zeroed when the average is `NA` or the weight is `<= 0`. The build stops if `units` or
+  any `*_valid_units` column has a missing value. CSVs write missing values as blank cells.
 - **The regression check is exact except for 4 Alaska tracts.** Those tracts contain 4 cohort rows
-  with negative valid-unit weights, which are raw LEAD artifacts. A weighted mean drops these rows;
-  the shared rollup's ratio of sums keeps them. The gap is at most 0.0013 percentage points. Every
-  other tract matches to 1e-16.
+  with negative valid-unit weights, which are raw LEAD artifacts. The build drops these rows on
+  purpose; the shared rollup's ratio of sums keeps them. The gap is at most 0.0013 percentage points.
+  Every other tract matches to floating-point precision (checked < 1e-9; observed ~1e-16).
 - Counties are built from the cohort rows, not from the tract table. Connecticut appears as its 9
   planning regions (09110–09190).
 

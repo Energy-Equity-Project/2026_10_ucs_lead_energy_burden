@@ -33,11 +33,14 @@ tract GEOID), the build script:
 3. After `ungroup()`, computes `total_utility_cost = electricity + gas + other fuel` and
    `energy_burden = 100 * total_utility_cost / weighted_income`.
 
-A fuel with no valid units in a group counts as $0 in the total. Burden is `NA` when weighted income
-is below `1e-9`; 17 tiny tracts have a degenerate modeled income of about 1e-10. Both rules match
-the shared rollup in `Cleaned_Data/doe/lead/`. The tract output reproduces that rollup to 1e-16,
-except in 4 Alaska tracts. Those tracts contain cohort rows with negative weights, which the
-weighted mean drops, and they differ by at most 0.0013 percentage points.
+A fuel with no valid units in a group counts as $0 in the total; a group with no valid units for any
+fuel gets no total (`NA`). Burden is `NA` when weighted income is below `1e-9`; 17 tiny tracts have a
+degenerate modeled income of about 1e-10. Both rules match the shared rollup in
+`Cleaned_Data/doe/lead/`. The tract output reproduces that rollup to floating-point precision (the
+build checks < 1e-9; the observed gap is ~1e-16), except in 4 Alaska tracts. Those tracts contain
+cohort rows with negative weights, which the build drops on purpose, and they differ by at most
+0.0013 percentage points. The build stops if any cohort row has a missing household count or weight.
+Missing values are written as blank cells.
 
 ## How to rebuild
 

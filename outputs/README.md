@@ -37,6 +37,8 @@ Both files share the same columns. The tract file adds `tract_geoid`.
 zeros, so Alabama tract `01001020100` becomes `1001020100`. In R, use
 `read.csv(..., colClasses = c(state_fips = "character", county_geoid = "character", tract_geoid = "character"))`.
 
+Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
+
 ## Sources
 
 - U.S. Department of Energy, Low-Income Energy Affordability Data (LEAD) Tool, 2022 release.
@@ -56,7 +58,8 @@ zeros, so Alabama tract `01001020100` becomes `1001020100`. In R, use
   in DOE's LEAD Tool. It is not the average of individual household burdens, which would generally
   be higher because low-income households carry the highest burdens.
 - **Missing fuels count as $0.** If no households in an area have valid data for a fuel, that
-  fuel's cost column is blank, and it adds $0 to `total_utility_cost`.
+  fuel's cost column is blank, and it adds $0 to `total_utility_cost`. If no fuel has valid data,
+  `total_utility_cost` is blank too.
 - **Blank burdens.** `energy_burden` is blank for 17 small census tracts whose modeled income in
   the DOE data is effectively zero. All counties have a value.
 - **Small areas.** A few tracts with very few households have extreme burdens. 7 tracts are above

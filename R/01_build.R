@@ -49,18 +49,19 @@ lead_cohorts <- arrow::open_dataset(lead_national_file) %>%
   ) %>%
   mutate(county_fip = floor(fip / 1e6))
 
-# Weighted means written as sum(x * w) / sum(w) over rows with a non-NA average,
-# which is exactly weighted.mean(x, w, na.rm = TRUE) in a form arrow can compute.
-# avg_* is NA where the weight is zero or, in 4 Alaska cohorts, negative (a raw
-# LEAD modeling artifact), so those rows drop out of both numerator and
-# denominator. A group whose weights are all zero returns NaN, set to NA below.
+# Weighted means written as sum(x * w) / sum(w) over rows with a non-NA average
+# and a positive weight, which is weighted.mean(x, w, na.rm = TRUE) in a form
+# arrow can compute. Non-positive weights are zeroed on purpose: 4 Alaska cohorts
+# carry negative valid units (a raw LEAD modeling artifact), and a negative weight
+# has no meaning in a mean. A group whose weights are all zero returns NaN, set to
+# NA below.
 summarize_lead <- function(cohorts, ...) {
   cohorts %>%
     mutate(
-      income_w = if_else(is.na(avg_income), 0, hincp_valid_units),
-      electric_w = if_else(is.na(avg_electricity_cost), 0, elep_valid_units),
-      gas_w = if_else(is.na(avg_gas_cost), 0, gasp_valid_units),
-      other_fuel_w = if_else(is.na(avg_other_fuel_cost), 0, fulp_valid_units)
+      income_w = case_when(is.na(avg_income) | hincp_valid_units <= 0 ~ 0, TRUE ~ hincp_valid_units),
+      electric_w = case_when(is.na(avg_electricity_cost) | elep_valid_units <= 0 ~ 0, TRUE ~ elep_valid_units),
+      gas_w = case_when(is.na(avg_gas_cost) | gasp_valid_units <= 0 ~ 0, TRUE ~ gasp_valid_units),
+      other_fuel_w = case_when(is.na(avg_other_fuel_cost) | fulp_valid_units <= 0 ~ 0, TRUE ~ fulp_valid_units)
     ) %>%
     group_by(...) %>%
     summarize(
@@ -78,10 +79,15 @@ summarize_lead <- function(cohorts, ...) {
     ungroup() %>%
     mutate(
       across(starts_with("weighted_"), ~ if_else(is.nan(.x), NA_real_, .x)),
-      # A fuel with no valid units in the group adds $0 rather than voiding the total
-      total_utility_cost = coalesce(weighted_electricity_cost, 0) +
-        coalesce(weighted_gas_cost, 0) +
-        coalesce(weighted_other_fuel_cost, 0),
+      # A fuel with no valid units in the group adds $0 rather than voiding the total;
+      # a group with no valid units for any fuel has no total at all
+      total_utility_cost = case_when(
+        is.na(weighted_electricity_cost) & is.na(weighted_gas_cost) &
+          is.na(weighted_other_fuel_cost) ~ NA_real_,
+        TRUE ~ coalesce(weighted_electricity_cost, 0) +
+          coalesce(weighted_gas_cost, 0) +
+          coalesce(weighted_other_fuel_cost, 0)
+      ),
       energy_burden = case_when(
         is.na(weighted_income) | weighted_income < income_floor ~ NA_real_,
         TRUE ~ 100 * total_utility_cost / weighted_income
@@ -118,12 +124,21 @@ county_energy_burden <- summarize_lead(lead_cohorts, state, county_fip) %>%
 
 # Checks -----------------------------------------------------------------------
 
-cohort_households <- lead_cohorts %>%
-  summarize(total = sum(units)) %>%
-  collect() %>%
-  pull(total)
+# A missing household count or weight would silently blank out its whole group
+cohort_totals <- lead_cohorts %>%
+  summarize(
+    households = sum(units),
+    missing_weights = sum(
+      is.na(units) | is.na(hincp_valid_units) | is.na(elep_valid_units) |
+        is.na(gasp_valid_units) | is.na(fulp_valid_units)
+    )
+  ) %>%
+  collect()
+
+cohort_households <- cohort_totals$households
 
 stopifnot(
+  cohort_totals$missing_weights == 0,
   !anyDuplicated(tract_energy_burden$tract_geoid),
   !anyDuplicated(county_energy_burden$county_geoid),
   nrow(tract_energy_burden) == 84280,
@@ -178,17 +193,26 @@ message(
 message("Tracts with NA burden: ", sum(is.na(tract_energy_burden$energy_burden)))
 message("Counties with NA burden: ", sum(is.na(county_energy_burden$energy_burden)))
 
+# The docs cite this count; confirm it after every rebuild
+high_burden_tracts <- tract_energy_burden %>% filter(energy_burden > 20)
+message(
+  "Tracts above 20% burden: ", nrow(high_burden_tracts),
+  " (largest has ", round(max(high_burden_tracts$total_households)), " households)"
+)
+
 # Write outputs; every file and column is documented in outputs/README.md
 dir.create(output_dir, showWarnings = FALSE)
 
 write.csv(
   tract_energy_burden,
   file.path(output_dir, paste0(run_date, "-ucs-lead-2022-tract-energy-burden.csv")),
-  row.names = FALSE
+  row.names = FALSE,
+  na = ""
 )
 
 write.csv(
   county_energy_burden,
   file.path(output_dir, paste0(run_date, "-ucs-lead-2022-county-energy-burden.csv")),
-  row.names = FALSE
+  row.names = FALSE,
+  na = ""
 )

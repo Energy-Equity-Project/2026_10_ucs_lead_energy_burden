@@ -1,4 +1,4 @@
-# Energy burden by census tract, county, state, and state and poverty level, DOE LEAD 2022
+# Energy burden by census tract, county and state, overall and by poverty level, DOE LEAD 2022
 
 Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientists, [delivery date].
 
@@ -7,16 +7,20 @@ Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientist
 | File | Description |
 |---|---|
 | `dd-mm-yyyy-ucs-lead-2022-tract-energy-burden.csv` | One row per census tract, 84,280 rows |
+| `dd-mm-yyyy-ucs-lead-2022-tract-energy-burden-fpl.csv` | One row per census tract and Federal Poverty Level band, 421,400 rows (84,280 tracts × 5 bands) |
 | `dd-mm-yyyy-ucs-lead-2022-county-energy-burden.csv` | One row per county or county equivalent, 3,222 rows |
+| `dd-mm-yyyy-ucs-lead-2022-county-energy-burden-fpl.csv` | One row per county and Federal Poverty Level band, 16,110 rows (3,222 counties × 5 bands) |
 | `dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv` | One row per state, 52 rows |
 | `dd-mm-yyyy-ucs-lead-2022-state-energy-burden-fpl.csv` | One row per state and Federal Poverty Level band, 260 rows (52 states × 5 bands) |
 
-All four files cover the 50 states, the District of Columbia and Puerto Rico. Each date prefix is
+All six files cover the 50 states, the District of Columbia and Puerto Rico. Each date prefix is
 the day the file was built.
 
 ## Data dictionary
 
-The tract and county files share the same columns, and the tract file adds `tract_geoid`. The state
+The tract and county files share the same columns, and the tract file adds `tract_geoid`. The tract
+and poverty level file has the tract file's columns, with `fpl` after `tract_geoid`; the county and
+poverty level file has the county file's columns, with `fpl` after `county_geoid`. The state
 file has `state_fips`, `state_abbr`, `state_name`, `total_households` and the six dollar and burden
 columns, from `weighted_income` to `energy_burden`. It does not have the geography codes below the
 state level or the four `*_households` weight columns. The state and poverty level file has the
@@ -27,7 +31,7 @@ state file's columns, with `fpl` after `state_name`.
 | `state_fips` | text | 2-digit state FIPS code | — |
 | `state_abbr` | text | 2-letter postal abbreviation (state files only) | — |
 | `state_name` | text | State name (state files only) | — |
-| `fpl` | text | Household income as a share of the federal poverty guideline, in DOE LEAD's five bands: `0-100%`, `100-150%`, `150-200%`, `200-400%`, `400%+` (state and poverty level file only) | — |
+| `fpl` | text | Household income as a share of the federal poverty guideline, in DOE LEAD's five bands: `0-100%`, `100-150%`, `150-200%`, `200-400%`, `400%+` (poverty level files only) | — |
 | `county_geoid` | text | 5-digit county FIPS code (state + county; tract and county files) | — |
 | `tract_geoid` | text | 11-digit census tract GEOID (tract file only) | — |
 | `total_households` | decimal | Estimated total households (housing units) | households |
@@ -73,11 +77,24 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   is computed from only that band's household groups in the state. Its burden is the band's average
   energy cost divided by its average income. The five band burdens do not average to the state
   burden; the state value combines the bands' costs and incomes, weighted by households.
+- **Tract and county poverty level values work the same way.** Each tract or county and poverty
+  level row is computed from only that band's household groups in the area, so the five band
+  burdens do not average to the tract or county burden.
+- **Every area has all five poverty levels.** In 358 tracts and 2 counties, LEAD has no households
+  in one or more bands. Those rows are still included, with 0 in `total_households` and the four
+  `*_households` columns and blank averages, costs and burden. There are 754 such tract rows and 2
+  county rows; both county rows are in the `0-100%` band.
+- **Poverty level rows are small.** Splitting an area by band leaves few households in many rows:
+  4,486 tract and poverty level rows have fewer than 10 households. Burdens in the `0-100%` band are
+  high by nature (42,013 tract rows in that band are above 20%), but very small rows can be extreme.
+  Consider filtering or flagging on `total_households` when mapping.
 - **Missing fuels count as $0.** If no households in an area have valid data for a fuel, that
   fuel's cost column is blank, and it adds $0 to `total_utility_cost`. If no fuel has valid data,
   `total_utility_cost` is blank too.
 - **Blank burdens.** `energy_burden` is blank for 17 small census tracts whose modeled income in
-  the DOE data is effectively zero. All counties have a value.
+  the DOE data is effectively zero. All counties have a value. In the poverty level files, it is
+  blank for 866 tract rows (the 754 rows with no households plus 112 rows with near-zero income or
+  no valid fuel data) and for the 2 county rows with no households.
 - **Small areas.** A few tracts with very few households have extreme burdens. 7 tracts are above
   20%, and all of them have fewer than 100 households. Consider filtering or flagging on
   `total_households` when mapping.
@@ -95,6 +112,6 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 
 ## Suggested citation
 
-Energy Equity Project. (2026). Energy burden by census tract, county, state, and state and poverty level, DOE LEAD 2022. Prepared for
+Energy Equity Project. (2026). Energy burden by census tract, county and state, overall and by poverty level, DOE LEAD 2022. Prepared for
 the Union of Concerned Scientists. Underlying data: U.S. Department of Energy, Low-Income Energy
 Affordability Data (LEAD) Tool, 2022.

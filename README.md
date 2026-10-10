@@ -22,9 +22,8 @@
 ## Method
 
 The cohort file has one row per tract × poverty band × tenure/year built × building type ×
-heating fuel. For each census tract, and separately for each county (the first 5 digits of the
-tract GEOID) and each state, overall and by FPL band (`fpl150`), the build script works from the
-cohort rows:
+heating fuel. For each census tract, county (the first 5 digits of the tract GEOID) and state,
+overall and by FPL band (`fpl150`), the build works from the cohort rows:
 
 1. Takes the weighted mean of each average, using that measure's own valid-units column as the
    weight:
@@ -36,40 +35,57 @@ cohort rows:
 3. After `ungroup()`, computes `total_utility_cost = electricity + gas + other fuel` and
    `energy_burden = 100 * total_utility_cost / weighted_income`.
 
+`add_cohort_weights()` in `R/functions.R` sets one weight rule for every table. A measure's weight is
+zero when:
+- its average is `NA`, or its valid units are `<= 0`. Negative valid units are a LEAD artifact.
+- its cost average is negative. That fuel only; the row still counts for its other measures.
+- the cohort's `avg_income` is below $1,000 (`min_cohort_income`). All four measures; the units stay
+  in `total_households`.
+
+The income rule removes 196,592 FPL cohort rows (all `0-100%`) and 162,218 AMI rows (160,344 in
+`0-30%`, 1,874 in `150%+`). These are near-zero or negative incomes that gave burdens up to
+2.9 million %. The negative-cost rule removes 10 FPL rows (`400%+`) and 15,635 AMI rows (`150%+`); in
+the AMI file they gave 53 negative tract × band burdens. Both rules lower lowest-band burdens: the
+national FPL `0-100%` burden falls from 19.64% to 18.74%, and AMI `0-30%` from 16.11% to 15.60%. The
+middle bands don't change. Cohorts whose valid units exceed their `units` (36,706 AMI `150%+` rows, 51
+FPL `400%+` rows) are kept. `outputs/README.md` has the full per-band table, which each build prints
+through `exclusion_summary()`.
+
 A fuel with no valid units in a group counts as $0 in the total; a group with no valid units for any
-fuel gets no total (`NA`). Burden is `NA` when weighted income is below `1e-9`; 17 tiny tracts have a
-degenerate modeled income of about 1e-10. Both rules match the shared rollup in
-`Cleaned_Data/doe/lead/`. The tract output reproduces that rollup to floating-point precision (the
-build checks < 1e-9; the observed gap is ~1e-16), except in 4 Alaska tracts. Those tracts contain
-cohort rows with negative weights, which the build drops on purpose, and they differ by at most
-0.0013 percentage points. The build stops if any cohort row has a missing household count or weight.
-Missing values are written as blank cells.
+fuel gets no total (`NA`). Burden is `NA` when the group has no valid income. The `1e-9` income floor
+in `add_totals()` remains as a backstop. The build stops if any cohort row has a missing household
+count or weight. Missing values are written as blank cells.
 
-The state file is not rolled up from the tract or county files. As a check, the build re-weights the
-county table and the state × FPL table up to states, the tract × FPL table up to tracts and the
-county × FPL table up to counties, and every value must match the directly built table to < 1e-9
-relative. The state × FPL file has the state file's columns plus `fpl`, which keeps LEAD's five band
-labels in order from lowest to highest income; it has 260 rows (52 states × 5 bands). State names and
-abbreviations come from `tidycensus::fips_codes`.
+**Checks.** Both scripts run the same checks from `R/functions.R`, and only the `expected` counts
+differ:
+- `check_tables()`: row counts, unique keys, GEOID widths and nesting, household totals against the
+  cohorts, every band present, and empty-band and blank-burden counts. It also checks validity: no
+  negative cost, total cost or burden, and every group income ≥ $1,000.
+- `check_rollups()`: re-weights every finer table up to every coarser one (< 1e-9 relative, weight
+  columns included): tract → county → state, each band table → its overall table, and
+  tract × band → county × band → state × band.
+- `check_regression()`: an unfiltered tract table (`exclude_invalid = FALSE`) must match the shared
+  rollup in `Cleaned_Data/doe/lead/` to ~1e-16. The exception is tracts with negative-weight cohorts,
+  which the rollup keeps: 4 FPL tracts (≤ 0.0013 percentage points) and 4,441 AMI tracts (≤ 0.083
+  points). The filtered tract table must also match the unfiltered one in every tract with no
+  filtered cohort (21,848 FPL and 23,505 AMI tracts).
 
-The tract × FPL and county × FPL files have the tract and county files' columns plus `fpl`, placed
-after the tract or county GEOID, and are grouped by that GEOID and band. Every area gets all five
-bands: a band with no LEAD cohorts in the area (754 tract rows in 358 tracts, 2 county rows) is filled
-in with 0 households and `NA` averages, cost and burden. The build checks both counts.
+The state files are not rolled up from the tract or county files. They carry `state_abbr` and
+`state_name` from `tidycensus::fips_codes` and leave out the `*_households` weight columns. Every band
+table gets all of its bands. A band with no LEAD cohorts in the area is filled in with 0 households
+and `NA` averages, cost and burden: 754 tract rows in 358 tracts and 2 county rows for FPL, and 935
+tract rows and 1 county row for AMI.
 
 The three AMI files (`R/02_build_ami.R`) apply the same method to LEAD's AMI cohort file, grouped by
-`ami150` (six bands, `0-30%` to `150%+`), with `ami` in place of `fpl`. The two scripts share their
-helpers through `R/functions.R`. The AMI file is a separate LEAD run with its own household counts.
-It holds 127,451,762 households against 126,917,028 in the FPL file, and 6,258 tracts differ by
-more than 0.1%, mostly in CA, NY, MA, HI and CT. The AMI bands therefore cannot be checked against
-the FPL-based overall files. Instead, the build re-weights each AMI band table up to overall AMI
-tables that it builds in memory, and checks the AMI tract totals against the shared AMI rollup.
-Those tract totals match exactly, except in 4,441 tracts holding the AMI file's 7,992
-negative-weight cohort rows (all in `150%+`), where the gap is at most 0.083 percentage points.
-Every area gets all six bands; the empty ones are 935 tract rows and 1 county row.
+`ami150` (six bands, `0-30%` to `150%+`), with `ami` in place of `fpl`. The AMI file is a separate
+LEAD run with its own household counts. It holds 127,451,762 households against 126,917,028 in the
+FPL file. 6,258 tracts (7.4%) differ by more than 0.1%, mostly in CA (51% of them), NY (29%) and MA
+(11%), then HI and CT. **The shipped overall files are FPL-based, so the AMI bands don't sum to them,
+and no overall AMI file is delivered.** The AMI build makes overall AMI tables in memory as check
+targets only.
 
-Arrow sums the cohort rows in parallel, so a rebuild can change the county, county × FPL, state and
-state × FPL values in the last digits (observed ≤ 1e-13 relative). The tract and tract × FPL files
+Arrow sums the cohort rows in parallel, so a rebuild can change the county, county × band, state and
+state × band values in the last digits (observed ≤ 1e-13 relative). The tract and tract × band files
 have been byte-identical across rebuilds.
 
 ## How to rebuild
@@ -96,4 +112,7 @@ Archived at `s3://eep-data-requests/2026_10_ucs_lead_energy_burden/`. Get a new 
 - Connecticut counties are the 9 planning regions (09110–09190), not the 8 legacy counties.
 - Puerto Rico is included (state FIPS `72`).
 - Very small tracts can have extreme burdens. 7 tracts are above 20%, and all of them have fewer
-  than 100 households.
+  than 100 households. Lowest-band tract rows can exceed 100% (423 FPL `0-100%` rows, 198 AMI `0-30%`
+  rows) even after the $1,000 income rule.
+- Lowest-band burdens exclude cohorts with average income under $1,000, so they understate burden for
+  the very poorest households.

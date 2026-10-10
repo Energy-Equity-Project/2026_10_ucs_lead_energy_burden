@@ -6,7 +6,11 @@ nine CSVs built from DOE LEAD 2022, covering the 50 states, DC and Puerto Rico:
 - Six from the FPL file: one row per census tract (84,280), per tract × FPL band (421,400), per county
   (3,222), per county × FPL band (16,110), per state (52) and per state × FPL band (260).
 - Three from the AMI file: one row per tract × AMI band (505,680), per county × AMI band (19,332) and
-  per state × AMI band (312). These are in addition to the FPL band files, not a replacement.
+  per state × AMI band (312). These are in addition to the FPL band files, not a replacement. There is
+  no overall AMI file.
+- Cohorts with average income under $1,000 are left out of every average, and negative cost averages
+  are left out of that fuel's average. Both rules came from the 2026-10-08 methodology audit; see
+  Method notes.
 
 ## Type
 Data request. This repo CONSUMES data from the shared Data/ and Cleaned_Data/ folders
@@ -34,12 +38,15 @@ active
   read only for the regression checks and do not feed the outputs.
 
 ## Key Files
-- `R/functions.R` holds the helpers both builds share: `summarize_lead()`, `add_totals()`,
-  `complete_bands()`, the GEOID formatters, `reweight_to()`, `check_gap()`, `cohort_audit()`,
-  `rollup_regression()` and `write_output()`. Change the method here, once, for both band families.
-- `R/01_build.R` builds the six FPL-file outputs. `R/02_build_ami.R` builds the three AMI outputs. Each
-  reads its cohort file through arrow, aggregates during the scan and runs `stopifnot()` checks before
-  writing. They are independent, and each takes 10–20 seconds.
+- `R/functions.R` holds everything both builds share: the weight rule (`add_cohort_weights()`,
+  `summarize_lead()`, `add_totals()`), the six-table build (`build_tables()`, `complete_bands()`,
+  `select_output()`), the checks (`cohort_audit()`, `check_tables()`, `check_rollups()`,
+  `check_regression()`), the summaries (`exclusion_summary()`, `print_build_summary()`) and
+  `write_output()`. Change the method here, once, for both band families.
+- `R/01_build.R` (FPL, writes six files) and `R/02_build_ami.R` (AMI, writes the three band files) have
+  the same steps: config and `expected` counts, then `build_tables()`, the four checks, the summaries
+  and the writes. Each reads its cohort file through arrow, aggregates during the scan and takes
+  about 15–25 seconds.
 - `.Renviron` holds every file path the scripts use: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE`,
   `LEAD_AMI_NATIONAL_FILE`, `LEAD_AMI_ROLLUP_FILE` and `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
   it even when force-added; the hook is local and must be reinstalled after a fresh clone.
@@ -50,42 +57,55 @@ active
 - Each average is `weighted.mean(avg_x, x_valid_units, na.rm = TRUE)`, written as
   `sum(x * w) / sum(w)` so arrow can compute it. Every cost is weighted by its own valid-units
   column. `total_households` is `sum(units)`.
-- After `ungroup()`, `add_totals()` sets `total_utility_cost` to electricity + gas + other fuel,
-  with a missing fuel counted as $0; it is `NA` when no fuel has valid units. `energy_burden = 100 * total_utility_cost /
-  weighted_income`, and it is `NA` when income is under `1e-9`. Both rules match the shared rollup.
-- Weights are zeroed when the average is `NA` or the weight is `<= 0`. The build stops if `units` or
-  any `*_valid_units` column has a missing value. CSVs write missing values as blank cells.
-- **The regression check is exact except for 4 Alaska tracts.** Those tracts contain 4 cohort rows
-  with negative valid-unit weights, which are raw LEAD artifacts. The build drops these rows on
-  purpose; the shared rollup's ratio of sums keeps them. The gap is at most 0.0013 percentage points.
-  Every other tract matches to floating-point precision (checked < 1e-9; observed ~1e-16).
-- Every table is built from the cohort rows, not from a finer table. As a check, `reweight_to()`
-  re-weights county and state × FPL up to states, tract × FPL up to tracts and county × FPL up to
-  counties (< 1e-9 relative), using `add_totals()` so the checks apply the output rules. The state
-  file has only the averages and `total_households`, without the `*_households` weight columns, and adds
-  `state_abbr` and `state_name` from `tidycensus::fips_codes`. The state × FPL file
-  (`...-state-energy-burden-fpl.csv`) has the same columns plus `fpl` (LEAD's `fpl150` labels,
-  sorted by a factor from `0-100%` to `400%+`). The tract × FPL and county × FPL files have the
-  tract and county columns plus `fpl` after the GEOID. `complete_bands()` gives every area all five
-  bands; missing bands (754 tract rows, 2 county rows, both counts checked) get 0 in the `*_households`
-  columns and `NA` values. Connecticut appears as its 9 planning regions
-  (09110–09190).
-- **AMI files** (`...-energy-burden-ami.csv`) mirror the three FPL band files with `ami` in place of
-  `fpl` (LEAD's `ami150` labels, sorted by a factor from `0-30%` to `150%+`). Things that differ from FPL:
-  - The AMI file is a separate LEAD run with its own household counts. It holds 127,451,762 households
-    against FPL's 126,917,028, and 6,258 tracts differ by > 0.1% (mostly CA, NY, MA, HI and CT). AMI bands
-    therefore cannot be checked against the shipped FPL-based overall files. `02_build_ami.R` builds
-    overall AMI tract, county and state tables in memory, never written, and re-weights each band table
-    up to them (< 1e-9).
-  - 7,992 AMI cohort rows have negative valid-unit weights, all in `150%+`, in 4,441 tracts. Units are
-    never negative. The regression against the AMI rollup is exact elsewhere (~1e-16). In those tracts
-    it is checked loosely (< 1e-3 as a fraction), and the observed max is 0.083 percentage points.
-  - Empty bands: 935 tract rows (442 tracts) and 1 county row (48261, `0-30%`), both counts checked.
-- Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × FPL,
-  state and state × FPL CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
-  numerically, not byte for byte. The tract and tract × FPL files have been byte-identical. Moving the
-  helpers into `R/functions.R` (2026-10-08) left the tract files byte-identical and the others within
-  9.4e-14 relative.
+- **Weight rule (`add_cohort_weights()`), the same for every table.** A measure's weight is 0 when:
+  - its average is `NA` or its valid units are `<= 0`;
+  - its cost average is `< 0` (that fuel only);
+  - the cohort's `avg_income < min_cohort_income` ($1,000), which zeroes all four measures.
+
+  Units always stay in `total_households`. `exclude_invalid = FALSE` keeps only the first rule, which is
+  the shared rollup's method and is used only for the regression.
+  - The income rule hits 196,592 FPL rows (all `0-100%`) and 162,218 AMI rows (160,344 `0-30%`, 1,874
+    `150%+`).
+  - The negative-cost rule hits 10 FPL rows (`400%+`) and 15,635 AMI rows (`150%+`).
+  - Oversized weights (valid units > `units`: 36,706 AMI `150%+` rows, 51 FPL `400%+` rows) are
+    kept by decision and documented.
+- **Effect (2026-10-08 rebuild vs the unfiltered build).**
+  - Middle bands: unchanged in every file (≤ 2e-14).
+  - National lowest band: FPL `0-100%` 19.64% → 18.74%, AMI `0-30%` 16.11% → 15.60%.
+  - Lowest band by state: lower everywhere, by up to 2.40 points (FPL) and 3.78 points (AMI).
+  - Lowest band by county: 804 FPL and 825 AMI counties move by more than 1 point, up to 27 and 35
+    points in small rural counties.
+  - Overall files: tract changes in 62,432 tracts (≤ 12.4 points), county ≤ 0.25 points, state
+    ≤ 0.02 points.
+  - All 53 former negative AMI burdens are gone.
+- After `ungroup()`, `add_totals()` sets `total_utility_cost` to electricity + gas + other fuel, with a
+  missing fuel counted as $0. It is `NA` when no fuel has valid units. `energy_burden = 100 *
+  total_utility_cost / weighted_income`, `NA` when income is missing or under the `1e-9` backstop.
+- **Checks, identical in both scripts.**
+  - `check_tables()`: structure, household totals, empty-band and blank-burden counts, and validity
+    (no negative cost or burden, every group income ≥ $1,000).
+  - `check_rollups()`: 9 re-weightings across levels and from band to overall, weights included,
+    < 1e-9.
+  - `check_regression()`: the unfiltered tract table matches the shared rollup exactly (~1e-16),
+    except in negative-weight tracts (4 FPL ≤ 0.0013 points; 4,441 AMI ≤ 0.083 points). The filtered
+    table matches the unfiltered one in every untouched tract (21,848 FPL, 23,505 AMI).
+
+  Counts per family live in each script's `expected` list.
+- `reweight_to()` computes the means before summing the weight columns. `summarize()` otherwise
+  reuses the summed columns inside the means, which once produced false failures in the audit.
+- The state files have only the averages and `total_households`, plus `state_abbr` and `state_name`
+  from `tidycensus::fips_codes`. Band files add `fpl` or `ami` after the GEOID, as a factor in LEAD's
+  label order. `complete_bands()` gives every area all bands; empty bands (FPL: 754 tract rows, 2
+  county rows; AMI: 935 tract rows, 1 county row `48261` `0-30%`) get 0 in the `*_households` columns
+  and `NA` values. Connecticut appears as its 9 planning regions (09110–09190).
+- **AMI vs FPL.** The AMI file is a separate LEAD run: 127,451,762 households against 126,917,028.
+  6,258 tracts (7.4%) differ by more than 0.1%, mostly CA (51%), NY (29%) and MA (11%), then HI and
+  CT. AMI bands don't sum to the shipped FPL-based overall files, and no overall AMI file is written.
+  The AMI build makes them in memory as check targets only.
+- Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
+  state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
+  numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows
+  in different orders, so always join or filter by key, never by position.
 
 ## Outputs and Delivery
 - `outputs/` is gitignored except `README.md`; files there are temporary.

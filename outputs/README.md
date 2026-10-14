@@ -85,6 +85,9 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 - **Energy burden is an area-level ratio.** It divides average energy cost by average income, as
   in DOE's LEAD Tool. It is not the average of individual household burdens, which would generally
   be higher because low-income households carry the highest burdens.
+- **Comparing with DOE's interactive LEAD Tool.** The tool's poverty level breakdown does not change
+  when a county is selected, so it cannot be used to check the county (or tract) poverty level
+  files. Compare those files with each other rather than with the tool.
 - **State values come from the household groups, not from the tract or county files.** Each state
   average is computed from all LEAD household groups in the state, in the same way as the tract and
   county averages. A state's burden is therefore not the average of its tract or county burdens.

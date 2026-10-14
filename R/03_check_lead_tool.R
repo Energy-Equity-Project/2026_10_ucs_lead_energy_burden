@@ -2,8 +2,11 @@
 # Reads only the latest shipped CSVs in OUTPUT_DIR and the tool values below; it does
 # not recompute anything and writes no files.
 #
-# Phase 1: FPL, state level (Michigan and Alabama). Later phases add county, tract
-# and AMI rows to `tool_values` and the matching file patterns to `shipped_files`.
+# Phase 1: FPL, state level and state x FPL band (Michigan and Alabama).
+# Phase 2: county level, overall values only (Wayne County, MI 26163; Perry County, AL 01105).
+# The LEAD tool does not update its FPL band stats when a county is selected, so county
+# FPL band values are not checked against it.
+# Later phases add rows to `tool_values` and the matching file patterns to `shipped_files`.
 #
 # Run from the repo root: Rscript R/03_check_lead_tool.R
 
@@ -36,7 +39,15 @@ tool_values <- tribble(
   "state", "fpl",   "01",   "100-150%", "energy_burden",      8,           0,
   "state", "fpl",   "01",   "150-200%", "energy_burden",      6,           0,
   "state", "fpl",   "01",   "200-400%", "energy_burden",      4,           0,
-  "state", "fpl",   "01",   "400%+",    "energy_burden",      1,           0
+  "state", "fpl",   "01",   "400%+",    "energy_burden",      1,           0,
+  "county", "fpl",  "26163", NA,        "energy_burden",      3,           0,
+  "county", "fpl",  "26163", NA,        "total_utility_cost", 2835,        0,
+  "county", "fpl",  "26163", NA,        "total_households",   688461,      0,
+  "county", "fpl",  "26163", NA,        "weighted_income",    82303,       0,
+  "county", "fpl",  "01105", NA,        "energy_burden",      6,           0,
+  "county", "fpl",  "01105", NA,        "total_utility_cost", 2521,        0,
+  "county", "fpl",  "01105", NA,        "total_households",   3075,        0,
+  "county", "fpl",  "01105", NA,        "weighted_income",    43119,       0
 )
 
 # Shipped files to check: the file-name suffix after the date, the geography key
@@ -44,7 +55,8 @@ tool_values <- tribble(
 shipped_files <- tribble(
   ~level,  ~family, ~suffix,                                ~geoid_col,   ~band_col,
   "state", "fpl",   "ucs-lead-2022-state-energy-burden",     "state_fips", NA,
-  "state", "fpl",   "ucs-lead-2022-state-energy-burden-fpl", "state_fips", "fpl"
+  "state", "fpl",   "ucs-lead-2022-state-energy-burden-fpl", "state_fips", "fpl",
+  "county", "fpl",  "ucs-lead-2022-county-energy-burden",    "county_geoid", NA
 )
 
 metrics <- c("energy_burden", "total_utility_cost", "total_households", "weighted_income")
@@ -96,6 +108,13 @@ comparison %>%
   select(level, family, geoid, band, metric, tool_value, ours, gap, pct_gap, rounds_to_tool) %>%
   mutate(across(c(ours, gap, pct_gap), ~ round(.x, 3))) %>%
   print(n = Inf, width = Inf)
+
+# Matches by level, so each phase reads on its own
+comparison %>%
+  group_by(level) %>%
+  summarize(matches = sum(rounds_to_tool), values = n()) %>%
+  ungroup() %>%
+  print()
 
 message(
   sum(comparison$rounds_to_tool), " of ", nrow(comparison),

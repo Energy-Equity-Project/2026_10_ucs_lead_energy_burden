@@ -51,6 +51,9 @@ active
   `LEAD_AMI_NATIONAL_FILE`, `LEAD_AMI_ROLLUP_FILE` and `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
   it even when force-added; the hook is local and must be reinstalled after a fresh clone.
   `.Renviron.example` is the committed template. Keep file paths out of the R code.
+- `R/03_check_lead_tool.R` compares the latest shipped CSVs with values read off the DOE LEAD
+  interactive tool. It reads the CSVs only, recomputes nothing and writes no files. A new check is a
+  row in `tool_values` (plus a row in `shipped_files` for a new file).
 - `outputs/README.md` is the partner-facing data dictionary and ships inside the delivery zip.
 
 ## Method notes
@@ -102,6 +105,15 @@ active
   6,258 tracts (7.4%) differ by more than 0.1%, mostly CA (51%), NY (29%) and MA (11%), then HI and
   CT. AMI bands don't sum to the shipped FPL-based overall files, and no overall AMI file is written.
   The AMI build makes them in memory as check targets only.
+- **Checks against the LEAD interactive tool (`R/03_check_lead_tool.R`).** The tool shows whole
+  numbers, so a value matches when ours rounds to it.
+  - The tool does not update its FPL band stats when a county is selected, so county (and tract) FPL
+    band values cannot be checked against it. Only overall county values are checked.
+  - As of 2026-10-14: state 7 of 18 match (MI, AL overall and FPL bands), county 5 of 8 (Wayne 26163,
+    Perry 01105, overall only). Our income is higher than the tool's in all four areas (+$22 to +$447,
+    ≤ 0.54%), and the state FPL band burdens miss by up to 1.5 points, including bands the filters don't
+    touch. MI's tool household count (4,009,261) matches the AMI file, not the FPL file. The gaps are
+    not explained yet.
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
   state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
   numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows

@@ -8,6 +8,17 @@ against the earlier 08-10-2026 outputs, which still had the rule. In today's `R/
 equals V3 (unfiltered) at all 46 keys, and V1 recomputes the former rule (25 of 46). Line references
 are to the code after the removal.
 
+**Update, 2026-10-14: band readings corrected, fuel burdens added, band rounding rule found.**
+- **Five band totals were misread (C3):** AL FPL `0-100%`, `100-150%` and `150-200%` (first read as 20, 8
+  and 6; the tool shows 21, 9 and 7), MI FPL `0-100%` (23; shows 24) and MI FPL `150-200%` (8; shows 7).
+  With the corrected values, 35 of 46 headline values match when our values are rounded as a whole.
+- **18 fuel burdens all match.** These are the per-fuel band burdens read off the tool (electricity, gas
+  and other fuel for six FPL bands).
+- **The tool's band panel builds each burden as a sum of rounded fuel burdens (C4).** Scored that way
+  (with total costs built the same way), 45 of 46 headline values match, and 63 of 64 with the fuel
+  burdens.
+- **One miss remains:** MI's household count, which the tool takes from the AMI file.
+
 This file lists every point where data is dropped, zeroed or redefined, from the
 raw DOE CSVs to the comparison, and measures each one's effect on the 46 tool values in
 `R/03_check_lead_tool.R`.
@@ -45,14 +56,19 @@ raw DOE CSVs to the comparison, and measures each one's effect on the 46 tool va
    - MI's household count (4,009,261) is the AMI file's, in both the tract and county files. The FPL file
      has 4,009,253. AL, Wayne and Perry are identical in all four files.
    - The overall burdens already match (6 of 6).
-2. **Band values: 9 to 10 of 22 unexplained.** No variant or averaging rule we tried reproduces them.
+2. **Band values: 9 to 10 of 22 unexplained, as first measured.** No variant or averaging rule we tried
+   reproduces them. *Since resolved:* 5 band totals were misread, and the tool's band
+   panel adds rounded fuel burdens. See "Band burdens: the tool totals rounded fuel burdens".
+   The record as first measured:
    - The shipped rule misses 9 bands, and the unfiltered method misses 10.
    - Misses go both ways, by up to 1.5 points, and include bands no filter touches (FPL `100-150%`,
      `150-200%`; AMI `30-60%`).
    - Dropping the income rule only trades misses. It fixes MI AMI `0-30%` but breaks MI FPL `0-100%`
      and AL AMI `0-30%`.
-3. **Best single method:** unfiltered, with fuel costs rounded before summing and the MI household count from
-   the AMI file. That gives 36 of 46: all 24 overall values and 12 of 22 bands.
+3. **Best single method, as first measured:** unfiltered, with fuel costs rounded before summing and the MI
+   household count from the AMI file. That gave 36 of 46: all 24 overall values and 12 of 22 bands. With
+   the corrected readings and band burdens built from rounded fuel burdens, the shipped files match
+   45 of 46. The one miss is MI households.
 
 ## Catalog
 
@@ -89,7 +105,8 @@ when the item is switched off or tested, measured against the shipped rule's 25.
 | C1 | `:126` | `round()` (half to even); the tool's display rule was unknown | Round half up gives the same results (no ties). `floor()` is worse in every variant (16 vs 25 shipped, 23 vs 31 unfiltered). The tool rounds; it doesn't truncate | not a cause |
 | C1b | `:126` | Our `total_utility_cost` is rounded once; the tool rounds each fuel and then adds | 6 of 6 totals match when the fuels are rounded first (unfiltered); 2 of 6 otherwise | **causes the remaining ±$1 cost gaps** |
 | C2 | `:95-100` | The latest dated file wins | V0 = shipped to 5.7e-14 | outputs are current |
-| C3 | `tool_values` | Values are read by hand at whole-number precision | — | can't test; a candidate for the band misses |
+| C3 | `tool_values` | Values are read by hand at whole-number precision | 5 band totals were misread and corrected on re-checking (2026-10-14): AL FPL `0-100%` 20 → 21, `100-150%` 8 → 9, `150-200%` 6 → 7; MI FPL `0-100%` 23 → 24, `150-200%` 8 → 7 | **caused 4 misses** (AL `100-150%`, AL `150-200%`, MI `0-100%`, MI `150-200%`) |
+| C4 | `R/03` (`tool_rule`), `R/04` C4 section | The tool's band panel adds each fuel's burden after rounding it to a whole percent; we round the total once | Built the tool's way, 22 of 22 band burdens match, against 16 of 22 rounded as a whole. Overall burdens are rounded as a whole in the tool (the fuel rule would break 1 of 2 state and 2 of 2 tract overall values) | **causes 6 band misses**: AL FPL `0-100%`, `400%+`; MI FPL `100-150%`; AL AMI `0-30%`, `150%+`; MI AMI `30-60%`. A display artifact, like C1b |
 
 ### Tool-side hypotheses
 | ID | Hypothesis | Result | Verdict |
@@ -125,51 +142,73 @@ V9b misses 4 costs. The unfiltered FPL-file costs, with each fuel rounded before
 all 6. Combining the two (unfiltered, fuels rounded first, MI households from the AMI file) gives
 **36 of 46**: all 24 overall values and 12 of 22 bands. This was not run as a single variant on the AMI-file costs.
 
-## Still unexplained: 10 band burdens (shipped since 2026-10-14)
-| Band | Tool | With the $1,000 rule (08-10-2026) | Shipped now, without it |
-|---|---|---|---|
-| MI FPL `0-100%` | 23 | 23.18 | 24.00 |
-| MI FPL `100-150%` | 9 | 10.05 | 10.05 |
-| MI FPL `150-200%` | 8 | 7.21 | 7.21 |
-| AL FPL `0-100%` | 20 | 20.85 | 21.52 |
-| AL FPL `100-150%` | 8 | 9.48 | 9.48 |
-| AL FPL `150-200%` | 6 | 6.53 | 6.53 |
-| AL FPL `400%+` | 1 | 1.69 | 1.69 |
-| MI AMI `30-60%` | 7 | 7.65 | 7.65 |
-| AL AMI `0-30%` | 22 | 21.81 | 22.58 |
-| AL AMI `150%+` | 1 | 1.58 | 1.58 |
+## Band burdens: the tool totals rounded fuel burdens
+Two things explained the band gaps:
+- **Misread totals (C3).** Five band totals were misread.
+- **A display rule (C4).** The tool's band panel shows each fuel's burden (cost as a percent of income)
+  rounded to a whole percent, and shows the band's burden as the sum of those rounded values. Our files
+  hold unrounded burdens, so a band can differ from the tool by up to about 1 point while every fuel
+  agrees. This is the same rule as total cost (C1b), where the tool adds rounded fuel costs.
 
-### Smallest possible gap, by size
-The tool shows whole numbers, so a displayed 6 can be any value from 5.5 to 6.5. The last column is
-how far the shipped value lies outside that range: the smallest the real gap can be. Values are from
-the 14-10-2026 state × band files, to three decimals.
+The shipped values are correct and stay unrounded.
 
-| Band family | State | Band | Tool | Shipped | Smallest possible gap |
+### Every state band burden, 14-10-2026 files
+"Rounded as a whole" is our burden rounded once. "Sum of rounded fuels" rounds our electricity, gas and
+other fuel burdens to whole percents, then adds them.
+
+| Band family | State | Band | Shipped burden | Rounded as a whole | Sum of rounded fuels | Tool |
+|---|---|---|---|---|---|---|
+| FPL | AL | `0-100%` | 21.523 | 22 | 18 + 3 + 0 = **21** | 21 |
+| FPL | AL | `100-150%` | 9.481 | 9 | 8 + 1 + 0 = **9** | 9 |
+| FPL | AL | `150-200%` | 6.527 | **7** | 6 + 1 + 0 = **7** | 7 |
+| FPL | AL | `200-400%` | 3.953 | 4 | **4** | 4 |
+| FPL | AL | `400%+` | 1.695 | 2 | 1 + 0 + 0 = **1** | 1 |
+| FPL | MI | `0-100%` | 23.996 | 24 | 13 + 10 + 1 = **24** | 24 |
+| FPL | MI | `100-150%` | 10.054 | 10 | 5 + 4 + 0 = **9** | 9 |
+| FPL | MI | `150-200%` | 7.205 | 7 | 4 + 3 + 0 = **7** | 7 |
+| FPL | MI | `200-400%` | 4.337 | 4 | **4** | 4 |
+| FPL | MI | `400%+` | 1.794 | 2 | **2** | 2 |
+| AMI | AL | `0-30%` | 22.580 | 23 | 19 + 3 + 0 = **22** | 22 |
+| AMI | AL | `30-60%` | 8.168 | 8 | **8** | 8 |
+| AMI | AL | `60-80%` | 5.213 | 5 | **5** | 5 |
+| AMI | AL | `80-100%` | 4.118 | 4 | **4** | 4 |
+| AMI | AL | `100-150%` | 3.067 | 3 | **3** | 3 |
+| AMI | AL | `150%+` | 1.584 | 2 | 1 + 0 + 0 = **1** | 1 |
+| AMI | MI | `0-30%` | 21.566 | 22 | **22** | 22 |
+| AMI | MI | `30-60%` | 7.646 | 8 | 4 + 3 + 0 = **7** | 7 |
+| AMI | MI | `60-80%` | 5.117 | 5 | **5** | 5 |
+| AMI | MI | `80-100%` | 4.077 | 4 | **4** | 4 |
+| AMI | MI | `100-150%` | 2.947 | 3 | **3** | 3 |
+| AMI | MI | `150%+` | 1.574 | 2 | **2** | 2 |
+| **Matches** | | | | **16 of 22** | **22 of 22** | |
+
+- **The two rules disagree in 6 bands, and the tool follows the sum of rounded fuels in all 6.**
+- **The rule applies only to the band panel.** Overall state and tract burdens match when rounded as a
+  whole (6 of 6). The fuel rule would give AL state 2 instead of 3, Perry 6871 8 instead of 7, and Wayne
+  5452 12 instead of 13.
+- **Rounding up or down instead of to the nearest doesn't fit.** For the six bands with tool fuel readings:
+  rounded up 0 of 6, rounded down 3 of 6, nearest 6 of 6.
+
+### Fuel burdens read off the tool
+| Band | Electric: ours / tool | Gas: ours / tool | Other fuel: ours / tool | Tool total | Tool's fuels added |
 |---|---|---|---|---|---|
-| FPL | AL | `0-100%` | 20 | 21.520 | 1.02 |
-| FPL | AL | `100-150%` | 8 | 9.480 | 0.98 |
-| FPL | MI | `100-150%` | 9 | 10.050 | 0.55 |
-| FPL | MI | `0-100%` | 23 | 23.996 | 0.50 |
-| FPL | MI | `150-200%` | 8 | 7.205 | 0.30 (shipped is lower) |
-| FPL | AL | `400%+` | 1 | 1.695 | 0.20 |
-| FPL | AL | `150-200%` | 6 | 6.527 | 0.03 |
-| AMI | MI | `30-60%` | 7 | 7.646 | 0.15 |
-| AMI | AL | `150%+` | 1 | 1.584 | 0.08 |
-| AMI | AL | `0-30%` | 22 | 22.580 | 0.08 |
+| MI FPL `0-100%` | 13.232 / 13 | 10.125 / 10 | 0.638 / 1 | 24 | 24 |
+| MI FPL `100-150%` | 5.334 / 5 | 4.391 / 4 | 0.329 / 0 | 9 | 9 |
+| MI FPL `150-200%` | 3.820 / 4 | 3.150 / 3 | 0.236 / 0 | 7 | 7 |
+| AL FPL `0-100%` | 18.237 / 18 | 3.082 / 3 | 0.204 / 0 | 21 | 21 |
+| AL FPL `100-150%` | 8.034 / 8 | 1.351 / 1 | 0.097 / 0 | 9 | 9 |
+| AL FPL `150-200%` | 5.540 / 6 | 0.927 / 1 | 0.061 / 0 | 7 | 7 |
 
-- **Near misses.** AL FPL `150-200%`, AL AMI `0-30%` and `150%+`, and MI AMI `30-60%` are each within
-  0.15 points of the tool's range. A small difference in method or data run could explain them.
-- **Real gaps.** The FPL `0-100%` and `100-150%` bands in both states are 0.5 to 1 point or more
-  above the tool, even in the best case.
-- **No common direction.** The shipped value is higher in 9 bands and lower only in MI FPL `150-200%`.
-  Within MI, `100-150%` is high and the next band up is low. One filter or scaling difference would move
-  neighbouring bands the same way, so these gaps point to something else.
+All 18 fuel burdens match, and in all 6 bands the tool's own fuel burdens add up to its total.
 
-Our unfiltered band values roll up exactly to overall values that match the tool. If the tool's band
-panel used the same cohorts and method, it would show our values, so it must use an input or method
-we haven't identified. The next step that could settle this
-is the tool's own data download for the MI and AL band panels: unrounded values, read off a file
-rather than a chart (C3).
+### What remains
+- **MI household count.** The tool's 4,009,261 is the AMI file's; ours comes from the FPL file
+  (4,009,253). See B10.
+
+Every band burden is explained. The band-income and electricity-cost multipliers in `R/04` (C4 section)
+are kept as a check. With the corrected readings, every band's income range includes 1 except MI
+`100-150%` (1.058 to 1.183). That band is explained by the display rule above, not by a data
+difference.
 
 ## Decision
 The $1,000 income rule (B2) was a deliberate departure from LEAD, chosen in the 2026-10-08 audit. It was
@@ -178,7 +217,9 @@ the main reason our overall values differed from the tool, so it was removed on 
   burdens from going negative.
 - The cohorts the rule dropped come back as extreme tract × band burdens, up to about 2.9 million %
   (FPL). They ship as computed, with a caveat in `outputs/README.md`.
-- The remaining misses are:
-  - the MI household count (the tool uses the AMI file);
-  - 4 costs, $1 apart because the tool rounds each fuel first;
-  - the 10 unexplained band burdens above.
+- The remaining differences from the tool are display rules or readings, not data. The shipped files
+  stay unrounded:
+  - 4 total costs are $1 apart, because the tool adds rounded fuel costs (C1b).
+  - 6 band burdens differ by up to about 1 point, because the tool adds rounded fuel burdens (C4).
+  - The MI household count comes from the tool's AMI file (B10).
+  - Five band totals were misread and have been corrected (C3).

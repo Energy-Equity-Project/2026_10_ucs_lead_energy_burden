@@ -191,7 +191,8 @@ variants <- list(
   "V10c AMI county file overall, ratio" = variant_values(ratio_summary(), overall = county_ami, fpl_bands = county_fpl, ami_bands = county_ami, has_tracts = FALSE)
 )
 
-comparison <- imap_dfr(variants, ~ tool_values %>% left_join(.x, by = key_cols) %>% mutate(variant = .y)) %>%
+# The variants score the four headline metrics; the fuel burden rows are scored in the C4 section
+comparison <- imap_dfr(variants, ~ tool_values %>% filter(metric %in% metrics) %>% left_join(.x, by = key_cols) %>% mutate(variant = .y)) %>%
   mutate(
     variant = factor(variant, levels = names(variants)),
     scale = 10^tool_digits,
@@ -380,7 +381,7 @@ band_averages <- bind_rows(
   area_band_averages(ami, "ami", "fip"), area_band_averages(ami, "ami", "county_fip")
 ) %>%
   pivot_longer(c(mean, household_mean, median), names_to = "stat", values_to = "value") %>%
-  inner_join(tool_values %>% filter(level == "state", !is.na(band)), by = c("family", "geoid", "band"))
+  inner_join(tool_values %>% filter(level == "state", !is.na(band), metric == "energy_burden"), by = c("family", "geoid", "band"))
 
 band_averages %>%
   mutate(shown = sprintf("%.2f%s", value, if_else(round(value, tool_digits) == tool_value, "*", "")),
@@ -411,3 +412,125 @@ comparison_cost <- bind_rows(
     sum_of_rounded = round(weighted_electricity_cost) + round(weighted_gas_cost) + round(weighted_other_fuel_cost)
   )
 print(comparison_cost)
+
+# ---- C4: does the tool total rounded fuel burdens? ----
+# For the FPL bands with tool fuel burdens: our fuel burdens (shipped rule) next to the
+# tool's, our fuel burdens totalled after rounding each one three ways, and the tool's
+# own fuel burdens totalled, each against the tool's total burden. Then every state band
+# and overall burden, rounded as a whole and as the sum of rounded fuel burdens.
+fuel_cols <- c("electricity", "gas", "other_fuel")
+tool_fuel <- tool_values %>%
+  filter(level == "state", family == "fpl", !is.na(band),
+         metric %in% c("energy_burden", "electricity_burden", "gas_burden", "other_fuel_burden")) %>%
+  mutate(metric = paste0("tool_", str_remove(metric, "_burden"))) %>%
+  select(geoid, band, metric, tool_value) %>%
+  pivot_wider(names_from = metric, values_from = tool_value) %>%
+  filter(!is.na(tool_electricity)) %>%
+  rename(tool_total = tool_energy)
+
+fuel_bands <- shipped_rule(fpl, state, band) %>%
+  transmute(
+    geoid = sprintf("%02.0f", state), band = as.character(band),
+    electricity = 100 * coalesce(weighted_electricity_cost, 0) / weighted_income,
+    gas = 100 * coalesce(weighted_gas_cost, 0) / weighted_income,
+    other_fuel = 100 * coalesce(weighted_other_fuel_cost, 0) / weighted_income,
+    total = energy_burden
+  ) %>%
+  inner_join(tool_fuel, by = c("geoid", "band")) %>%
+  mutate(
+    sum_nearest = round(electricity) + round(gas) + round(other_fuel),
+    sum_up = ceiling(electricity) + ceiling(gas) + ceiling(other_fuel),
+    sum_down = floor(electricity) + floor(gas) + floor(other_fuel),
+    tool_sum = tool_electricity + tool_gas + tool_other_fuel
+  )
+stopifnot(nrow(fuel_bands) == nrow(tool_fuel))
+
+message("\nFuel burdens (percent of income) and totals, shipped rule vs the tool:")
+fuel_bands %>%
+  mutate(across(c(all_of(fuel_cols), total), ~ round(.x, 3))) %>%
+  select(geoid, band, electricity, tool_electricity, gas, tool_gas, other_fuel, tool_other_fuel,
+         total, tool_total, sum_nearest, sum_up, sum_down, tool_sum) %>%
+  print(width = Inf)
+
+message("\nBand totals matching the tool, by rule (of ", nrow(fuel_bands), "):")
+fuel_bands %>%
+  summarize(
+    fuel_burdens_matched = paste0(sum(round(electricity) == tool_electricity & round(gas) == tool_gas &
+                                        round(other_fuel) == tool_other_fuel), " bands"),
+    shipped_total_rounded = sum(round(total) == tool_total),
+    sum_nearest = sum(sum_nearest == tool_total),
+    sum_up = sum(sum_up == tool_total),
+    sum_down = sum(sum_down == tool_total),
+    tool_own_sum = sum(tool_sum == tool_total)
+  ) %>%
+  print(width = Inf)
+
+# Range of multipliers that make all four of our values round to the tool's displays.
+# A display d holds values in [d - 0.5, d + 0.5); for a value v divided by k that gives
+# v / (d + 0.5) < k <= v / (d - 0.5), with no upper bound when d is 0.
+upper_k <- function(v, d) case_when(d > 0 ~ v / (d - 0.5), TRUE ~ Inf)
+fits_display <- function(v, d) v >= d - 0.5 & v < d + 0.5
+
+multipliers <- fuel_bands %>%
+  mutate(
+    # Income times k divides every burden by k
+    income_k_low = pmax(electricity / (tool_electricity + 0.5), gas / (tool_gas + 0.5),
+                        other_fuel / (tool_other_fuel + 0.5), total / (tool_total + 0.5)),
+    income_k_high = pmin(upper_k(electricity, tool_electricity), upper_k(gas, tool_gas),
+                         upper_k(other_fuel, tool_other_fuel), upper_k(total, tool_total)),
+    income_k_mid = (income_k_low + income_k_high) / 2,
+    income_mid_fits = fits_display(electricity / income_k_mid, tool_electricity) &
+      fits_display(gas / income_k_mid, tool_gas) & fits_display(other_fuel / income_k_mid, tool_other_fuel) &
+      fits_display(total / income_k_mid, tool_total),
+    # Electricity cost times m changes only the electricity burden and the total
+    rest = total - electricity,
+    others_fit = fits_display(gas, tool_gas) & fits_display(other_fuel, tool_other_fuel),
+    electricity_m_low = pmax((tool_electricity - 0.5) / electricity, (tool_total - 0.5 - rest) / electricity),
+    electricity_m_high = pmin((tool_electricity + 0.5) / electricity, (tool_total + 0.5 - rest) / electricity),
+    electricity_m_mid = (electricity_m_low + electricity_m_high) / 2,
+    electricity_mid_fits = others_fit & fits_display(electricity * electricity_m_mid, tool_electricity) &
+      fits_display(rest + electricity * electricity_m_mid, tool_total),
+    income_range = case_when(
+      income_k_low < income_k_high ~ sprintf("%.3f to %.3f", income_k_low, income_k_high),
+      TRUE ~ "none"
+    ),
+    electricity_range = case_when(
+      others_fit & electricity_m_low < electricity_m_high ~ sprintf("%.3f to %.3f", electricity_m_low, electricity_m_high),
+      TRUE ~ "none"
+    )
+  )
+
+message("\nMultipliers under which all four values round to the tool's (income: our values / k; ",
+        "electricity cost: our electricity x m). 1 means no change:")
+multipliers %>%
+  select(geoid, band, income_range, income_mid_fits, electricity_range, electricity_mid_fits) %>%
+  print(width = Inf)
+
+# Every state burden the tool shows, rounded as a whole and as the sum of nearest-rounded
+# fuel burdens. The tool's band panel follows the second; its overall values the first.
+state_burdens <- bind_rows(
+  shipped_rule(fpl, state) %>% mutate(family = "fpl", band = NA_character_),
+  shipped_rule(fpl, state, band) %>% mutate(family = "fpl", band = as.character(band)),
+  shipped_rule(ami, state, band) %>% mutate(family = "ami", band = as.character(band))
+) %>%
+  transmute(
+    family, geoid = sprintf("%02.0f", state), band, total = energy_burden,
+    rounded_sum = round(100 * coalesce(weighted_electricity_cost, 0) / weighted_income) +
+      round(100 * coalesce(weighted_gas_cost, 0) / weighted_income) +
+      round(100 * coalesce(weighted_other_fuel_cost, 0) / weighted_income)
+  ) %>%
+  inner_join(tool_values %>% filter(level == "state", metric == "energy_burden") %>%
+               select(family, geoid, band, tool = tool_value), by = c("family", "geoid", "band")) %>%
+  mutate(row = case_when(is.na(band) ~ "overall", TRUE ~ "band"),
+         total_rounded = round(total) == tool, sum_of_rounded = rounded_sum == tool)
+
+message("\nState burdens: total rounded vs sum of rounded fuel burdens, against the tool:")
+state_burdens %>%
+  mutate(total = round(total, 3)) %>%
+  select(family, geoid, band, total, rounded_sum, tool, total_rounded, sum_of_rounded) %>%
+  print(n = Inf, width = Inf)
+state_burdens %>%
+  group_by(row, family) %>%
+  summarize(values = n(), total_rounded = sum(total_rounded), sum_of_rounded = sum(sum_of_rounded)) %>%
+  ungroup() %>%
+  print()

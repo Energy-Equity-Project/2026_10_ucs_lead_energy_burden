@@ -120,15 +120,20 @@ active
   - The tool does not update its FPL band stats when a county or tract is selected, so county and
     tract FPL band values cannot be checked against it. Only overall county and tract values are checked.
   - The tool's tract name drops the code's last two digits: tract 6871 is GEOID `…687100`.
-  - After the 2026-10-14 rebuild without the $1,000 rule, 31 of 46 match (25 before):
-    - state 8 of 18 (MI, AL overall and FPL bands);
-    - state × AMI 9 of 12;
-    - county 7 of 8 (Wayne 26163, Perry 01105);
-    - tract 7 of 8 (Perry 6871 `01105687100`, Wayne 5452 `26163545200`).
-  - `LEAD_TOOL_DISCREPANCIES.md` catalogs every filter point and its measured effect, and
-    `R/04_diagnose_tool_gaps.R` reproduces it. The 15 misses:
-    - **MI household count (1).** The tool's 4,009,261 is the AMI file's; ours comes from the FPL file
-      (4,009,253).
+  - **Corrected readings.** On re-checking the tool (2026-10-14), five band totals had been misread:
+    - AL FPL `0-100%` 20 → 21, `100-150%` 8 → 9, `150-200%` 6 → 7;
+    - MI FPL `0-100%` 23 → 24, `150-200%` 8 → 7.
+  - **Results** (14-10-2026 files, rebuilt without the $1,000 rule):
+    - Rounding our values as a whole, 35 of 46 headline values match (25 before the rebuild): state 12
+      of 18, state × AMI 9 of 12, county 7 of 8 (Wayne 26163, Perry 01105), tract 7 of 8 (Perry 6871
+      `01105687100`, Wayne 5452 `26163545200`).
+    - 18 per-fuel band burdens (electric, gas, other fuel, for MI and AL FPL `0-100%`, `100-150%`,
+      `150-200%`) all match.
+    - Built the way the tool builds them (03's `tool_rule`), **45 of 46** headline values match, and
+      63 of 64 with the fuel burdens.
+  - `LEAD_TOOL_DISCREPANCIES.md` catalogs every filter point and display rule, and
+    `R/04_diagnose_tool_gaps.R` reproduces it. The tool's display rules, none of which should change
+    the shipped (unrounded) files:
     - **Total cost (4), a display artifact, not a data gap.** The tool rounds electricity, gas and
       other fuel to the dollar, then adds the rounded values. Our `total_utility_cost` adds the
       unrounded fuels and is rounded only for the comparison, so the two can differ by $1.
@@ -142,9 +147,15 @@ active
       | AL | 2,419 | 2,419.62 | 2,041 + 358 + 20 = 2,419 |
       | Wayne 26163 | 2,835 | 2,835.67 | 1,639 + 1,181 + 15 = 2,835 |
       | Wayne 5452 `26163545200` | 3,533 | 3,532.04 | 2,028 + 1,486 + 19 = 3,533 |
-    - **Band burdens (10), unexplained.** FPL: MI `0-100%`, `100-150%`, `150-200%`; AL `0-100%`,
-      `100-150%`, `150-200%`, `400%+`. AMI: MI `30-60%`, AL `0-30%`, `150%+`. They miss by up to 1.5
-      points in both directions. No cohort filter, averaging rule or county-file source reproduces them.
+    - **Band burdens (6), a display artifact.** The tool's band panel rounds each fuel's burden (cost as a
+      percent of income) to a whole percent and shows their sum as the band's burden.
+      - Built that way, all 22 state band burdens match, against 16 of 22 rounded as a whole. In all 6
+        bands where the two rules differ, the tool follows the fuel sum: AL FPL `0-100%`, `400%+`; MI FPL
+        `100-150%`; AL AMI `0-30%`, `150%+`; MI AMI `30-60%`.
+      - Overall burdens are rounded as a whole. The fuel rule would break the AL state, Perry 6871 and
+        Wayne 5452 overall values.
+  - **The one remaining miss:** MI's household count. The tool's 4,009,261 is the AMI file's; ours comes
+    from the FPL file (4,009,253).
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
   state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
   numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows

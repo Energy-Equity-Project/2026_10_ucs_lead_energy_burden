@@ -90,8 +90,10 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   Alabama, two counties and two tracts against the tool. Income, household counts and burden match the
   tool at its display precision. The one exception is Michigan's household count, where the tool uses
   DOE's area median income file. Total cost differs by at most $1, because the tool rounds each fuel
-  before adding them. Some state poverty level and AMI band burdens differ from the tool by up to about 1.5
-  points, for reasons EEP has not identified. The tool's poverty level breakdown does not change
+  before adding them. The tool's poverty level and AMI band burdens are built the same way: it rounds
+  each fuel's burden to a whole percent and shows their sum. A band can therefore differ from these
+  files by up to about 1 point while its electricity, gas and other fuel burdens all agree. Built that
+  way, all 22 state band burdens EEP checked match. The tool's poverty level breakdown does not change
   when a county is selected, so it cannot be used to check the county (or tract) poverty level
   files.
 - **State values come from the household groups, not from the tract or county files.** Each state

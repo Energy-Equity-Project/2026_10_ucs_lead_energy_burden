@@ -1,6 +1,6 @@
 # Energy burden by census tract, county and state, overall, by poverty level and by area median income, DOE LEAD 2022
 
-Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientists, [delivery date].
+Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientists, October 14, 2026.
 
 ## Contents
 
@@ -45,7 +45,7 @@ three poverty level files, with `ami` in place of `fpl`.
 | `fpl` | text | Household income as a share of the federal poverty guideline, in DOE LEAD's five bands: `0-100%`, `100-150%`, `150-200%`, `200-400%`, `400%+` (poverty level files only) | — |
 | `ami` | text | Household income as a share of the area median income (AMI), in DOE LEAD's six bands: `0-30%`, `30-60%`, `60-80%`, `80-100%`, `100-150%`, `150%+` (area median income files only) | — |
 | `county_geoid` | text | 5-digit county FIPS code (state + county; tract and county files) | — |
-| `tract_geoid` | text | 11-digit census tract GEOID (tract file only) | — |
+| `tract_geoid` | text | 11-digit census tract GEOID (tract files only) | — |
 | `total_households` | decimal | Estimated total households (housing units) | households |
 | `income_households` | decimal | Households with valid income data, used as the weight for `weighted_income` | households |
 | `electric_households` | decimal | Households with valid electricity cost data, used as the weight for `weighted_electricity_cost` | households |
@@ -71,7 +71,7 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   (downloaded 2025-08-06).
 - U.S. Department of Energy, Low-Income Energy Affordability Data (LEAD) Tool, 2022 release.
   Census tract data by Area Median Income band, same source and download date. Used for the three
-  area median income files only.
+  area median income files and the overall state file.
 
 ## Methods and caveats
 
@@ -107,7 +107,7 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   is computed from only that band's household groups in the state. Its burden is the band's average
   energy cost divided by its average income. The five band burdens do not average to the state
   burden. The overall state value combines the area median income bands' costs and incomes, weighted
-  by households.
+  by the households with valid data for each measure.
 - **Tract and county poverty level values work the same way.** Each tract or county and poverty
   level row is computed from only that band's household groups in the area, so the five band
   burdens do not average to the tract or county burden.
@@ -119,7 +119,7 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   few households in many rows: 4,486 tract and poverty level rows have fewer than 10 households.
   Burdens in the `0-100%` band are high by nature (42,013 tract rows in that band are above 20%), and
   some rows are extreme:
-  - 945 tract rows in that band are above 100%.
+  - 945 tract rows in that band are above 100%, plus 1 in the `150-200%` band.
   - 21 tract rows are above 1,000%, up to about 2.9 million percent.
 
   These rows come from household groups whose modeled average income is near zero or negative. The
@@ -240,7 +240,7 @@ Both shares are national.
 | `80-100%` | 0 | 0% | 7% / 8% / 11% / 7% | 3.14% |
 | `100-150%` | 0 | 0% | 5% / 6% / 9% / 6% | 2.07% |
 | `150%+` | 15,635 | 0.02–0.11% | 4% / 4% / 6% / 4% | 1.36% |
-| All households | 15,635 | < 0.04% | 7% / 9% / 12% / 8% | 2.28% |
+| All households | 15,635 | < 0.04% | 7% / 9% / 12% / 8% | 2.27% |
 
 **What the rule changes**
 
@@ -255,7 +255,7 @@ Both shares are national.
 
 ## Contact
 
-[EEP contact name and email]
+Rahul Agrawal Bejarano, data@energyequityproject.org
 
 ## Suggested citation
 

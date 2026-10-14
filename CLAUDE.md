@@ -110,8 +110,11 @@ active
   - The tool does not update its FPL band stats when a county or tract is selected, so county and
     tract FPL band values cannot be checked against it. Only overall county and tract values are checked.
   - The tool's tract name drops the code's last two digits: tract 6871 is GEOID `…687100`.
-  - As of 2026-10-14, 16 of 34 match: state 7 of 18 (MI, AL overall and FPL bands), county 5 of 8
-    (Wayne 26163, Perry 01105), tract 4 of 8 (Perry 6871 `01105687100`, Wayne 5452 `26163545200`).
+  - As of 2026-10-14, 25 of 46 match: state 7 of 18 (MI, AL overall and FPL bands), state × AMI 9 of
+    12, county 5 of 8 (Wayne 26163, Perry 01105), tract 4 of 8 (Perry 6871 `01105687100`, Wayne 5452
+    `26163545200`).
+  - AMI bands track the tool more closely than FPL bands. The AMI misses are MI `0-30%` (20.97 vs 22)
+    and `30-60%` (7.65 vs 7), and AL `150%+` (1.58 vs 1).
     Our income is higher than the tool's in all six areas (+$22 to +$447, up to +1.48% in Wayne 5452),
     and the state FPL band burdens miss by up to 1.5 points, including bands the filters don't touch.
     MI's tool household count (4,009,261) matches the AMI file, not the FPL file. The gaps are not

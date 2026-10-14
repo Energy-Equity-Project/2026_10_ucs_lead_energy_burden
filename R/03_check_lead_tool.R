@@ -6,6 +6,7 @@
 # Phase 2: county level, overall values only (Wayne County, MI 26163; Perry County, AL 01105).
 # Phase 3: tract level, overall values only (Perry tract 6871 01105687100; Wayne tract 5452
 # 26163545200). The tool's tract name drops the code's last two digits (6871 = 687100).
+# Phase 4: state x AMI band burden (Michigan and Alabama).
 # The LEAD tool does not update its FPL band stats when a county or tract is selected, so
 # county and tract FPL band values are not checked against it.
 # Later phases add rows to `tool_values` and the matching file patterns to `shipped_files`.
@@ -13,6 +14,10 @@
 # Run from the repo root: Rscript R/03_check_lead_tool.R
 
 library(tidyverse)
+
+# The match count groups by two keys and is ungrouped explicitly, so dplyr's
+# regrouping notice is noise
+options(dplyr.summarise.inform = FALSE)
 
 # Retrieve the output folder from .Renviron
 output_dir <- Sys.getenv("OUTPUT_DIR")
@@ -57,7 +62,19 @@ tool_values <- tribble(
   "tract", "fpl",   "26163545200", NA,  "energy_burden",      13,          0,
   "tract", "fpl",   "26163545200", NA,  "total_utility_cost", 3533,        0,
   "tract", "fpl",   "26163545200", NA,  "total_households",   869,         0,
-  "tract", "fpl",   "26163545200", NA,  "weighted_income",    27926,       0
+  "tract", "fpl",   "26163545200", NA,  "weighted_income",    27926,       0,
+  "state", "ami",   "26",   "0-30%",    "energy_burden",      22,          0,
+  "state", "ami",   "26",   "30-60%",   "energy_burden",      7,           0,
+  "state", "ami",   "26",   "60-80%",   "energy_burden",      5,           0,
+  "state", "ami",   "26",   "80-100%",  "energy_burden",      4,           0,
+  "state", "ami",   "26",   "100-150%", "energy_burden",      3,           0,
+  "state", "ami",   "26",   "150%+",    "energy_burden",      2,           0,
+  "state", "ami",   "01",   "0-30%",    "energy_burden",      22,          0,
+  "state", "ami",   "01",   "30-60%",   "energy_burden",      8,           0,
+  "state", "ami",   "01",   "60-80%",   "energy_burden",      5,           0,
+  "state", "ami",   "01",   "80-100%",  "energy_burden",      4,           0,
+  "state", "ami",   "01",   "100-150%", "energy_burden",      3,           0,
+  "state", "ami",   "01",   "150%+",    "energy_burden",      1,           0
 )
 
 # Shipped files to check: the file-name suffix after the date, the geography key
@@ -67,7 +84,8 @@ shipped_files <- tribble(
   "state", "fpl",   "ucs-lead-2022-state-energy-burden",     "state_fips", NA,
   "state", "fpl",   "ucs-lead-2022-state-energy-burden-fpl", "state_fips", "fpl",
   "county", "fpl",  "ucs-lead-2022-county-energy-burden",    "county_geoid", NA,
-  "tract", "fpl",   "ucs-lead-2022-tract-energy-burden",     "tract_geoid", NA
+  "tract", "fpl",   "ucs-lead-2022-tract-energy-burden",     "tract_geoid", NA,
+  "state", "ami",   "ucs-lead-2022-state-energy-burden-ami", "state_fips", "ami"
 )
 
 metrics <- c("energy_burden", "total_utility_cost", "total_households", "weighted_income")
@@ -120,9 +138,9 @@ comparison %>%
   mutate(across(c(ours, gap, pct_gap), ~ round(.x, 3))) %>%
   print(n = Inf, width = Inf)
 
-# Matches by level, so each phase reads on its own
+# Matches by level and band family, so each phase reads on its own
 comparison %>%
-  group_by(level) %>%
+  group_by(level, family) %>%
   summarize(matches = sum(rounds_to_tool), values = n()) %>%
   ungroup() %>%
   print()

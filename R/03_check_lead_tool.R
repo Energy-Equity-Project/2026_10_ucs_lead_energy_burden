@@ -1,24 +1,27 @@
-# Compare the shipped UCS files with values read off the DOE LEAD interactive tool.
-# Reads only the latest shipped CSVs in OUTPUT_DIR and R/lead_tool_values.R; it does
-# not recompute anything from cohorts and writes no files. The only derived values are
-# the fuel burdens, each shipped fuel cost as a percent of shipped income.
+# Compare the shipped UCS files with values read off the DOE LEAD interactive tool. This is
+# the only check against the tool; the build checks run in R/01_build.R and R/02_build_ami.R.
+# Reads only the latest shipped CSVs in OUTPUT_DIR; it does not recompute anything from
+# cohorts and writes no files. The only derived values are the fuel burdens, each shipped
+# fuel cost as a percent of shipped income.
 #
-# Phase 1: state level and state x FPL band (Michigan and Alabama). The overall state file
-# comes from the AMI cohort file (R/02_build_ami.R); it keeps the `fpl` key because the
-# tool's overall rows in `tool_values` are labeled `fpl`.
-# Phase 2: county level, overall values only (Wayne County, MI 26163; Perry County, AL 01105).
-# Phase 3: tract level, overall values only (Perry tract 6871 01105687100; Wayne tract 5452
-# 26163545200). The tool's tract name drops the code's last two digits (6871 = 687100).
-# Phase 4: state x AMI band burden (Michigan and Alabama).
-# Phase 5: electricity, gas and other fuel burden for the FPL bands that missed the tool
-# (MI 0-100%, 100-150%, 150-200%; AL 0-100%, 100-150%, 150-200%), counted apart from the rest.
-# Band burdens and total costs are also scored the way the tool builds them: the three
-# fuels rounded to whole numbers, then added (`tool_rule`). Overall burdens are not; the
-# tool rounds them as a whole.
-# The LEAD tool does not update its FPL band stats when a county or tract is selected, so
-# county and tract FPL band values are not checked against it.
-# Later phases add rows to `tool_values` in R/lead_tool_values.R and the matching file
-# patterns to `shipped_files`.
+# Values checked (tool_values below):
+#   - Michigan and Alabama: overall burden, total cost, households and income, and burden
+#     for each FPL band. The overall state file comes from the AMI cohort file
+#     (R/02_build_ami.R) but is keyed `fpl`, like the tool's overall rows.
+#   - Michigan and Alabama: burden for each AMI band.
+#   - Wayne County, MI 26163 and Perry County, AL 01105: overall values only.
+#   - Perry tract 6871 (01105687100) and Wayne tract 5452 (26163545200): overall values only.
+#     The tool's tract name drops the code's last two digits (6871 = 687100).
+#   - Electricity, gas and other fuel burden for MI and AL FPL 0-100%, 100-150%, 150-200%,
+#     counted apart from the headline values.
+# The tool does not update its FPL band stats when a county or tract is selected, so county
+# and tract band values are not checked against it.
+#
+# A value matches when ours rounds to the tool's whole number (`rounds_to_tool`). The tool
+# builds total cost and band burdens from rounded fuels, so those are also scored that way
+# (`tool_rule`). Overall burdens are rounded as a whole. See METHODOLOGY.md.
+#
+# To add a check, add a row to `tool_values`, and a row to `shipped_files` for a new file.
 #
 # Run from the repo root: Rscript R/03_check_lead_tool.R
 
@@ -35,8 +38,77 @@ if (output_dir == "") {
   stop("Missing in .Renviron: OUTPUT_DIR. Copy .Renviron.example to .Renviron, fill it in and restart R.")
 }
 
-# Values as the LEAD tool displays them, shared with R/04_diagnose_tool_gaps.R
-source("R/lead_tool_values.R")
+# Values as the LEAD tool displays them, in whole numbers (tool_digits = 0). band = NA is
+# the overall row. The *_burden fuel rows are each fuel's cost as a percent of income,
+# from the tool's band panel. Five band burdens were corrected on re-checking the tool
+# (2026-10-14); see METHODOLOGY.md.
+tool_values <- tribble(
+  ~level,  ~family, ~geoid, ~band,      ~metric,              ~tool_value, ~tool_digits,
+  "state", "fpl",   "26",   NA,         "energy_burden",      3,           0,
+  "state", "fpl",   "26",   NA,         "total_utility_cost", 2687,        0,
+  "state", "fpl",   "26",   NA,         "total_households",   4009261,     0,
+  "state", "fpl",   "26",   NA,         "weighted_income",    94973,       0,
+  "state", "fpl",   "26",   "0-100%",   "energy_burden",      24,          0,
+  "state", "fpl",   "26",   "100-150%", "energy_burden",      9,           0,
+  "state", "fpl",   "26",   "150-200%", "energy_burden",      7,           0,
+  "state", "fpl",   "26",   "200-400%", "energy_burden",      4,           0,
+  "state", "fpl",   "26",   "400%+",    "energy_burden",      2,           0,
+  "state", "fpl",   "01",   NA,         "energy_burden",      3,           0,
+  "state", "fpl",   "01",   NA,         "total_utility_cost", 2419,        0,
+  "state", "fpl",   "01",   NA,         "total_households",   1933150,     0,
+  "state", "fpl",   "01",   NA,         "weighted_income",    84282,       0,
+  "state", "fpl",   "01",   "0-100%",   "energy_burden",      21,          0,
+  "state", "fpl",   "01",   "100-150%", "energy_burden",      9,           0,
+  "state", "fpl",   "01",   "150-200%", "energy_burden",      7,           0,
+  "state", "fpl",   "01",   "200-400%", "energy_burden",      4,           0,
+  "state", "fpl",   "01",   "400%+",    "energy_burden",      1,           0,
+  "county", "fpl",  "26163", NA,        "energy_burden",      3,           0,
+  "county", "fpl",  "26163", NA,        "total_utility_cost", 2835,        0,
+  "county", "fpl",  "26163", NA,        "total_households",   688461,      0,
+  "county", "fpl",  "26163", NA,        "weighted_income",    82303,       0,
+  "county", "fpl",  "01105", NA,        "energy_burden",      6,           0,
+  "county", "fpl",  "01105", NA,        "total_utility_cost", 2521,        0,
+  "county", "fpl",  "01105", NA,        "total_households",   3075,        0,
+  "county", "fpl",  "01105", NA,        "weighted_income",    43119,       0,
+  "tract", "fpl",   "01105687100", NA,  "energy_burden",      7,           0,
+  "tract", "fpl",   "01105687100", NA,  "total_utility_cost", 2671,        0,
+  "tract", "fpl",   "01105687100", NA,  "total_households",   1154,        0,
+  "tract", "fpl",   "01105687100", NA,  "weighted_income",    36089,       0,
+  "tract", "fpl",   "26163545200", NA,  "energy_burden",      13,          0,
+  "tract", "fpl",   "26163545200", NA,  "total_utility_cost", 3533,        0,
+  "tract", "fpl",   "26163545200", NA,  "total_households",   869,         0,
+  "tract", "fpl",   "26163545200", NA,  "weighted_income",    27926,       0,
+  "state", "ami",   "26",   "0-30%",    "energy_burden",      22,          0,
+  "state", "ami",   "26",   "30-60%",   "energy_burden",      7,           0,
+  "state", "ami",   "26",   "60-80%",   "energy_burden",      5,           0,
+  "state", "ami",   "26",   "80-100%",  "energy_burden",      4,           0,
+  "state", "ami",   "26",   "100-150%", "energy_burden",      3,           0,
+  "state", "ami",   "26",   "150%+",    "energy_burden",      2,           0,
+  "state", "ami",   "01",   "0-30%",    "energy_burden",      22,          0,
+  "state", "ami",   "01",   "30-60%",   "energy_burden",      8,           0,
+  "state", "ami",   "01",   "60-80%",   "energy_burden",      5,           0,
+  "state", "ami",   "01",   "80-100%",  "energy_burden",      4,           0,
+  "state", "ami",   "01",   "100-150%", "energy_burden",      3,           0,
+  "state", "ami",   "01",   "150%+",    "energy_burden",      1,           0,
+  "state", "fpl",   "26",   "0-100%",   "electricity_burden", 13,          0,
+  "state", "fpl",   "26",   "0-100%",   "gas_burden",         10,          0,
+  "state", "fpl",   "26",   "0-100%",   "other_fuel_burden",  1,           0,
+  "state", "fpl",   "26",   "100-150%", "electricity_burden", 5,           0,
+  "state", "fpl",   "26",   "100-150%", "gas_burden",         4,           0,
+  "state", "fpl",   "26",   "100-150%", "other_fuel_burden",  0,           0,
+  "state", "fpl",   "26",   "150-200%", "electricity_burden", 4,           0,
+  "state", "fpl",   "26",   "150-200%", "gas_burden",         3,           0,
+  "state", "fpl",   "26",   "150-200%", "other_fuel_burden",  0,           0,
+  "state", "fpl",   "01",   "0-100%",   "electricity_burden", 18,          0,
+  "state", "fpl",   "01",   "0-100%",   "gas_burden",         3,           0,
+  "state", "fpl",   "01",   "0-100%",   "other_fuel_burden",  0,           0,
+  "state", "fpl",   "01",   "100-150%", "electricity_burden", 8,           0,
+  "state", "fpl",   "01",   "100-150%", "gas_burden",         1,           0,
+  "state", "fpl",   "01",   "100-150%", "other_fuel_burden",  0,           0,
+  "state", "fpl",   "01",   "150-200%", "electricity_burden", 6,           0,
+  "state", "fpl",   "01",   "150-200%", "gas_burden",         1,           0,
+  "state", "fpl",   "01",   "150-200%", "other_fuel_burden",  0,           0
+)
 
 # Shipped files to check: the file-name suffix after the date, the geography key
 # column and the band column (NA for overall files). The overall state file is built from

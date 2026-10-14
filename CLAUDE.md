@@ -107,13 +107,15 @@ active
   The AMI build makes them in memory as check targets only.
 - **Checks against the LEAD interactive tool (`R/03_check_lead_tool.R`).** The tool shows whole
   numbers, so a value matches when ours rounds to it.
-  - The tool does not update its FPL band stats when a county is selected, so county (and tract) FPL
-    band values cannot be checked against it. Only overall county values are checked.
-  - As of 2026-10-14: state 7 of 18 match (MI, AL overall and FPL bands), county 5 of 8 (Wayne 26163,
-    Perry 01105, overall only). Our income is higher than the tool's in all four areas (+$22 to +$447,
-    ≤ 0.54%), and the state FPL band burdens miss by up to 1.5 points, including bands the filters don't
-    touch. MI's tool household count (4,009,261) matches the AMI file, not the FPL file. The gaps are
-    not explained yet.
+  - The tool does not update its FPL band stats when a county or tract is selected, so county and
+    tract FPL band values cannot be checked against it. Only overall county and tract values are checked.
+  - The tool's tract name drops the code's last two digits: tract 6871 is GEOID `…687100`.
+  - As of 2026-10-14, 16 of 34 match: state 7 of 18 (MI, AL overall and FPL bands), county 5 of 8
+    (Wayne 26163, Perry 01105), tract 4 of 8 (Perry 6871 `01105687100`, Wayne 5452 `26163545200`).
+    Our income is higher than the tool's in all six areas (+$22 to +$447, up to +1.48% in Wayne 5452),
+    and the state FPL band burdens miss by up to 1.5 points, including bands the filters don't touch.
+    MI's tool household count (4,009,261) matches the AMI file, not the FPL file. The gaps are not
+    explained yet.
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
   state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
   numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows

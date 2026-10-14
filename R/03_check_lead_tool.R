@@ -4,8 +4,10 @@
 #
 # Phase 1: FPL, state level and state x FPL band (Michigan and Alabama).
 # Phase 2: county level, overall values only (Wayne County, MI 26163; Perry County, AL 01105).
-# The LEAD tool does not update its FPL band stats when a county is selected, so county
-# FPL band values are not checked against it.
+# Phase 3: tract level, overall values only (Perry tract 6871 01105687100; Wayne tract 5452
+# 26163545200). The tool's tract name drops the code's last two digits (6871 = 687100).
+# The LEAD tool does not update its FPL band stats when a county or tract is selected, so
+# county and tract FPL band values are not checked against it.
 # Later phases add rows to `tool_values` and the matching file patterns to `shipped_files`.
 #
 # Run from the repo root: Rscript R/03_check_lead_tool.R
@@ -47,7 +49,15 @@ tool_values <- tribble(
   "county", "fpl",  "01105", NA,        "energy_burden",      6,           0,
   "county", "fpl",  "01105", NA,        "total_utility_cost", 2521,        0,
   "county", "fpl",  "01105", NA,        "total_households",   3075,        0,
-  "county", "fpl",  "01105", NA,        "weighted_income",    43119,       0
+  "county", "fpl",  "01105", NA,        "weighted_income",    43119,       0,
+  "tract", "fpl",   "01105687100", NA,  "energy_burden",      7,           0,
+  "tract", "fpl",   "01105687100", NA,  "total_utility_cost", 2671,        0,
+  "tract", "fpl",   "01105687100", NA,  "total_households",   1154,        0,
+  "tract", "fpl",   "01105687100", NA,  "weighted_income",    36089,       0,
+  "tract", "fpl",   "26163545200", NA,  "energy_burden",      13,          0,
+  "tract", "fpl",   "26163545200", NA,  "total_utility_cost", 3533,        0,
+  "tract", "fpl",   "26163545200", NA,  "total_households",   869,         0,
+  "tract", "fpl",   "26163545200", NA,  "weighted_income",    27926,       0
 )
 
 # Shipped files to check: the file-name suffix after the date, the geography key
@@ -56,7 +66,8 @@ shipped_files <- tribble(
   ~level,  ~family, ~suffix,                                ~geoid_col,   ~band_col,
   "state", "fpl",   "ucs-lead-2022-state-energy-burden",     "state_fips", NA,
   "state", "fpl",   "ucs-lead-2022-state-energy-burden-fpl", "state_fips", "fpl",
-  "county", "fpl",  "ucs-lead-2022-county-energy-burden",    "county_geoid", NA
+  "county", "fpl",  "ucs-lead-2022-county-energy-burden",    "county_geoid", NA,
+  "tract", "fpl",   "ucs-lead-2022-tract-energy-burden",     "tract_geoid", NA
 )
 
 metrics <- c("energy_burden", "total_utility_cost", "total_households", "weighted_income")

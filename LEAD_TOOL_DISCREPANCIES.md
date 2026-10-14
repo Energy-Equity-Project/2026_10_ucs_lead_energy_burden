@@ -1,6 +1,14 @@
 # Discrepancies between the shipped files and the DOE LEAD interactive tool
 
-Measured 2026-10-14. This file lists every point where data is dropped, zeroed or redefined, from the
+Measured 2026-10-14.
+
+**Update, 2026-10-14: the $1,000 income rule (B2) has been removed.** The files were rebuilt and 31 of 46
+values now match, with 25 before. The catalog and the scores below record the measurement made
+against the earlier 08-10-2026 outputs, which still had the rule. In today's `R/04` output, V0 (shipped)
+equals V3 (unfiltered) at all 46 keys, and V1 recomputes the former rule (25 of 46). Line references
+are to the code after the removal.
+
+This file lists every point where data is dropped, zeroed or redefined, from the
 raw DOE CSVs to the comparison, and measures each one's effect on the 46 tool values in
 `R/03_check_lead_tool.R`.
 
@@ -55,15 +63,15 @@ when the item is switched off or tested, measured against the shipped rule's 25.
 ### Build (`R/functions.R`, `R/01_build.R`, `R/02_build_ami.R`)
 | ID | Where | What it drops or changes | Rows affected | Effect on tool values | Verdict |
 |---|---|---|---|---|---|
-| B1 | `functions.R:43-58` | Weight 0 when the average is NA or valid units ≤ 0 | negative weights: 4 / 7,992 | none in MI or AL (V3 = V4) | not a cause here |
-| B2 | `functions.R:18`, `:31` | **`avg_income < $1,000` zeroes all four measures** | 196,592 / 162,218 | **+6** (31 vs 25). Gains: all 6 incomes, Perry 6871 cost, MI AMI `0-30%`. Losses: MI FPL `0-100%`, AL AMI `0-30%` | **causes every income gap and most of the cost gap**; the tool keeps these cohorts |
-| B3 | `functions.R:32-34` | A negative cost average zeroes that fuel | 10 / 15,635 | 0 (V2 = V0 at all 46 keys) | not a cause in MI or AL |
+| B1 | `functions.R:34-52` | Weight 0 when the average is NA or valid units ≤ 0 | negative weights: 4 / 7,992 | none in MI or AL (V3 = V4) | not a cause here |
+| B2 | removed 2026-10-14 | **`avg_income < $1,000` zeroed all four measures** | 196,592 / 162,218 | **+6** (31 vs 25). Gains: all 6 incomes, Perry 6871 cost, MI AMI `0-30%`. Losses: MI FPL `0-100%`, AL AMI `0-30%` | **caused every income gap and most of the cost gap**; the tool keeps these cohorts. **Removed** |
+| B3 | `functions.R:25-27` | A negative cost average zeroes that fuel | 10 / 15,635 | 0 (V2 = V0 at all 46 keys) | not a cause in MI or AL |
 | B4 | not filtered | Valid units > `units` kept by decision | 51 / 36,706 | none: V4, which keeps every row, matches the tool's overall values | consistent with the tool |
-| B5 | `functions.R:71-78` | Each measure averages over its own valid units | — | Averaging costs over all `units` keeps the income matches but lowers every cost by about $300 (V6); averaging everything over `units` drops income 5–14% (V7) | our denominators match the tool's |
-| B6 | `functions.R:93-99` | A missing fuel counts as $0; all fuels missing → NA | — | no checked area lacks a fuel | can't test here |
-| B7 | `functions.R:100-103` | 1e-9 income floor → NA burden | 17 tracts | none of the checked areas | not a cause |
-| B8 | `functions.R:70` | `total_households = sum(units)`, including zero-weight cohorts | — | 5 of 6 counts match; MI is the B10 issue | consistent with the tool |
-| B9 | `functions.R:128-144` | County = first 5 digits of the tract GEOID; CT planning regions | — | the checked county and tract keys all resolve and match | not a cause here |
+| B5 | `functions.R:64-72` | Each measure averages over its own valid units | — | Averaging costs over all `units` keeps the income matches but lowers every cost by about $300 (V6); averaging everything over `units` drops income 5–14% (V7) | our denominators match the tool's |
+| B6 | `functions.R:86-92` | A missing fuel counts as $0; all fuels missing → NA | — | no checked area lacks a fuel | can't test here |
+| B7 | `functions.R:93-96` | 1e-9 income floor → NA burden | 2 tracts; 23 FPL / 24 AMI tract × band rows (since B2 was removed) | none of the checked areas | not a cause |
+| B8 | `functions.R:63` | `total_households = sum(units)`, including zero-weight cohorts | — | 5 of 6 counts match; MI is the B10 issue | consistent with the tool |
+| B9 | `functions.R:121-137` | County = first 5 digits of the tract GEOID; CT planning regions | — | the checked county and tract keys all resolve and match | not a cause here |
 | B10 | `01_build.R:66` | The overall files come from the FPL cohort file | MI: 4,009,253 FPL vs 4,009,261 AMI | MI households match with the AMI file (V9a, V9b) | **causes the MI household gap**; the tool's MI count is the AMI run's |
 
 ### Comparison (`R/03_check_lead_tool.R`)
@@ -90,7 +98,7 @@ when the item is switched off or tested, measured against the shipped rule's 25.
 | Variant | All | State FPL (18) | State AMI (12) | County (8) | Tract (8) |
 |---|---|---|---|---|---|
 | V0 shipped rule | 25 / 46 | 7 | 9 | 5 | 4 |
-| V1 no $1,000 income rule | 31 / 46 | 8 | 9 | 7 | 7 |
+| V1 no $1,000 income rule (now the shipped rule) | 31 / 46 | 8 | 9 | 7 | 7 |
 | V2 no negative-cost rule | 25 / 46 | 7 | 9 | 5 | 4 |
 | V3 unfiltered (`weighted.mean`) | 31 / 46 | 8 | 9 | 7 | 7 |
 | V4 ratio of raw sums (shared rollup method) | 31 / 46 | 8 | 9 | 7 | 7 |
@@ -108,8 +116,8 @@ V9b misses 4 costs. The unfiltered FPL-file costs, with each fuel rounded before
 all 6. Combining the two (unfiltered, fuels rounded first, MI households from the AMI file) gives
 **36 of 46**: all 24 overall values and 12 of 22 bands. This was not run as a single variant on the AMI-file costs.
 
-## Still unexplained: 10 band burdens (unfiltered method)
-| Band | Tool | Shipped | Unfiltered |
+## Still unexplained: 10 band burdens (shipped since 2026-10-14)
+| Band | Tool | With the $1,000 rule (08-10-2026) | Shipped now, without it |
 |---|---|---|---|
 | MI FPL `0-100%` | 23 | 23.18 | 24.00 |
 | MI FPL `100-150%` | 9 | 10.05 | 10.05 |
@@ -128,7 +136,14 @@ we haven't identified. The next step that could settle this
 is the tool's own data download for the MI and AL band panels: unrounded values, read off a file
 rather than a chart (C3).
 
-## Open decision
-The $1,000 income rule (B2) is a deliberate departure from LEAD, chosen in the 2026-10-08 audit. It is
-the main reason our overall values differ from the tool. Changing or keeping it is a method decision
-for the team. `outputs/README.md` already documents the rule, but not that the tool keeps these cohorts.
+## Decision
+The $1,000 income rule (B2) was a deliberate departure from LEAD, chosen in the 2026-10-08 audit. It was
+the main reason our overall values differed from the tool, so it was removed on 2026-10-14.
+- The negative-cost rule (B3) stays. It changes none of the 46 values and keeps 53 AMI tract × band
+  burdens from going negative.
+- The cohorts the rule dropped come back as extreme tract × band burdens, up to about 2.9 million %
+  (FPL). They ship as computed, with a caveat in `outputs/README.md`.
+- The remaining misses are:
+  - the MI household count (the tool uses the AMI file);
+  - 4 costs, $1 apart because the tool rounds each fuel first;
+  - the 10 unexplained band burdens above.

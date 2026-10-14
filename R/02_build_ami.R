@@ -49,9 +49,9 @@ ami_levels <- c("0-30%", "30-60%", "60-80%", "80-100%", "100-150%", "150%+")
 expected <- list(
   tracts = 84280, counties = 3222, states = 52,
   negative_weight_rows = 7992, negative_weight_tracts = 4441,
-  low_income_rows = 162218, negative_cost_rows = 15635, filtered_tracts = 60775,
+  negative_cost_rows = 15635, filtered_tracts = 6417,
   empty_tract_band_rows = 935, empty_county_band_rows = 1,
-  na_burden_tract = 17, na_burden_tract_band = 1044,
+  na_burden_tract = 17, na_burden_tract_band = 1055,
   # Observed max is 0.083 percentage points in the negative-weight tracts; 1e-3 allows 0.1
   loose_burden_gap = 1e-3
 )

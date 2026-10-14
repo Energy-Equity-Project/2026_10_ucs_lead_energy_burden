@@ -77,17 +77,23 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   the AMI files), tenure, building age, building type and heating fuel. Within each tract, county or state:
   - Income and each fuel cost are averaged across these groups, weighted by the number of
     households with valid data for that measure.
-  - Two kinds of group are left out of the averages: groups whose average income is below $1,000,
-    and, for a single fuel, groups whose average cost for that fuel is negative. See "Household groups
-    left out of the averages" below.
+  - Every group's income is kept, including the near-zero and negative incomes DOE models for some
+    groups, as in DOE's LEAD Tool. The one exclusion is for a single fuel: a group whose average cost
+    for that fuel is negative is left out of that fuel's average. See "Household groups left out of
+    the averages" below.
   - Total utility cost is the sum of the three fuel costs.
   - Energy burden is total utility cost divided by income.
 - **Energy burden is an area-level ratio.** It divides average energy cost by average income, as
   in DOE's LEAD Tool. It is not the average of individual household burdens, which would generally
   be higher because low-income households carry the highest burdens.
-- **Comparing with DOE's interactive LEAD Tool.** The tool's poverty level breakdown does not change
+- **Comparing with DOE's interactive LEAD Tool.** EEP checked the overall values for Michigan,
+  Alabama, two counties and two tracts against the tool. Income, household counts and burden match the
+  tool at its display precision. The one exception is Michigan's household count, where the tool uses
+  DOE's area median income file. Total cost differs by at most $1, because the tool rounds each fuel
+  before adding them. Some state poverty level and AMI band burdens differ from the tool by up to about 1.5
+  points, for reasons EEP has not identified. The tool's poverty level breakdown does not change
   when a county is selected, so it cannot be used to check the county (or tract) poverty level
-  files. Compare those files with each other rather than with the tool.
+  files.
 - **State values come from the household groups, not from the tract or county files.** Each state
   average is computed from all LEAD household groups in the state, in the same way as the tract and
   county averages. A state's burden is therefore not the average of its tract or county burdens.
@@ -102,11 +108,17 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   in one or more bands. Those rows are still included, with 0 in `total_households` and the four
   `*_households` columns and blank averages, costs and burden. There are 754 such tract rows and 2
   county rows; both county rows are in the `0-100%` band.
-- **Poverty level rows are small.** Splitting an area by band leaves few households in many rows:
-  4,486 tract and poverty level rows have fewer than 10 households. Burdens in the `0-100%` band are
-  high by nature (38,255 tract rows in that band are above 20%), and some rows are extreme: 423 tract
-  rows in that band are above 100%, up to 1,214%. Consider filtering or flagging on
-  `total_households` when mapping.
+- **Poverty level rows are small, and some have extreme burdens.** Splitting an area by band leaves
+  few households in many rows: 4,486 tract and poverty level rows have fewer than 10 households.
+  Burdens in the `0-100%` band are high by nature (42,013 tract rows in that band are above 20%), and
+  some rows are extreme:
+  - 945 tract rows in that band are above 100%.
+  - 21 tract rows are above 1,000%, up to about 2.9 million percent.
+
+  These rows come from household groups whose modeled average income is near zero or negative. The
+  Census data behind LEAD records business and investment losses as negative income. The values are
+  kept as DOE's data gives them, and every row above 1,000% has 166 households or fewer. Consider
+  filtering or flagging on `total_households` and `weighted_income` when mapping.
 - **Area median income values use the same method.** Each area and AMI band row is computed from
   only that band's household groups in the area. The six band burdens do not average to the area's
   overall burden.
@@ -142,19 +154,29 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   averages, costs and burden. There are 935 such tract rows. The county row is Kenedy County, Texas
   (`48261`), in the `0-30%` band.
 - **AMI rows are small too.** 3,306 tract and AMI rows have fewer than 10 households. Burdens in the
-  `0-30%` band are high by nature (31,758 tract rows in that band are above 20%), and 198 tract rows
-  in that band are above 100%, up to 627%.
+  `0-30%` band are high by nature (34,124 tract rows in that band are above 20%). 490 tract rows in
+  that band are above 100%, and 14 tract rows are above 1,000%, up to 40,599%. These extremes have the
+  same cause as in the poverty level files.
 - **Missing fuels count as $0.** If no households in an area have valid data for a fuel, that
   fuel's cost column is blank, and it adds $0 to `total_utility_cost`. If no fuel has valid data,
   `total_utility_cost` is blank too.
-- **Blank burdens.** `energy_burden` is blank for 17 small census tracts (40 households or fewer)
-  where no household group has an average income of $1,000 or more. All counties have a value.
-  - In the poverty level files, it is blank for 858 tract rows: the 754 rows with no households, 103
-    rows with no group at $1,000 or more of income and 1 row with no valid fuel data. It is also blank
-    for the 2 county rows with no households.
-  - In the area median income files, it is blank for 1,044 tract rows: the 935 rows with no
-    households, 106 rows with no group at $1,000 or more of income and 3 rows with no valid fuel
-    data. It is also blank for the 1 county row with no households.
+- **Blank burdens.** `energy_burden` is blank where there is no usable income to divide by. That
+  covers 17 small census tracts (40 households or fewer): 15 with no valid income data and 2 whose
+  average income is a fraction of a cent. All counties have a value.
+  - In the poverty level files, it is blank for 866 tract rows:
+    - the 754 rows with no households;
+    - 88 rows with no valid income data;
+    - 23 rows whose average income is zero, negative or a fraction of a cent;
+    - 1 row with no valid fuel data.
+
+    It is also blank for the 2 county rows with no households.
+  - In the area median income files, it is blank for 1,055 tract rows:
+    - the 935 rows with no households;
+    - 93 rows with no valid income data;
+    - 24 rows whose average income is zero, negative or a fraction of a cent;
+    - 3 rows with no valid fuel data.
+
+    It is also blank for the 1 county row with no households.
 - **Small areas.** A few tracts with very few households have extreme burdens. 7 tracts are above
   20%, and all of them have fewer than 100 households. Consider filtering or flagging on
   `total_households` when mapping.
@@ -168,66 +190,55 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 
 ## Household groups left out of the averages
 
-Two rules apply in the same way to every file, area and band:
+One rule applies in the same way to every file, area and band:
 
-- **Average income below $1,000.** A household group whose average income is below $1,000 is left
-  out of every average: income and all three fuel costs. These incomes are near zero or negative
-  (the Census data behind LEAD records business and investment losses as negative income), and they
-  produced burdens in the thousands of percent, up to 2.9 million percent in one tract row.
 - **Negative fuel cost.** A household group with a negative average cost for a fuel is left out of
   that fuel's average only. Its income and other fuel costs still count.
 
-The households in these groups still count in `total_households`, but not in the `*_households`
-weight columns. In the tables below, "weight left out" is the share of a measure's households with
-valid data that the rules remove, and "no valid data" is the share of all households that DOE
-reports without a valid value for income, electricity, gas or other fuel. Both shares are national.
+Every household group's income is kept, including near-zero and negative incomes, as in DOE's LEAD
+Tool. The households in excluded groups still count in `total_households`, but not in that fuel's
+`*_households` weight column.
+
+In the tables below:
+- "Fuel weight left out" is the share of a fuel's households with valid data that the rule removes.
+- "No valid data" is the share of all households that DOE reports without a valid value for income,
+  electricity, gas or other fuel.
+
+Both shares are national.
 
 **Poverty level bands**
 
-| Band | Groups under $1,000 income | Income weight left out | Fuel weight left out | Groups with a negative cost | No valid data: income / electricity / gas / other fuel | National burden, before → after |
-|---|---|---|---|---|---|---|
-| `0-100%` | 196,592 | 5.0% | 4.8–5.0% | 0 | 14% / 19% / 23% / 15% | 19.64% → 18.74% |
-| `100-150%` | 0 | 0% | 0% | 0 | 12% / 16% / 19% / 13% | 8.34%, unchanged |
-| `150-200%` | 0 | 0% | 0% | 0 | 10% / 13% / 16% / 11% | 6.05%, unchanged |
-| `200-400%` | 0 | 0% | 0% | 0 | 7% / 9% / 12% / 8% | 3.73%, unchanged |
-| `400%+` | 0 | 0% | < 0.01% | 10 | 4% / 5% / 8% / 5% | 1.55%, unchanged |
-| All households | 196,592 | 0.5% | 0.4–0.5% | 10 | 7% / 9% / 12% / 8% | 2.30% → 2.29% |
+| Band | Groups with a negative cost | Fuel weight left out | No valid data: income / electricity / gas / other fuel | National burden |
+|---|---|---|---|---|
+| `0-100%` | 0 | 0% | 14% / 19% / 23% / 15% | 19.64% |
+| `100-150%` | 0 | 0% | 12% / 16% / 19% / 13% | 8.34% |
+| `150-200%` | 0 | 0% | 10% / 13% / 16% / 11% | 6.05% |
+| `200-400%` | 0 | 0% | 7% / 9% / 12% / 8% | 3.73% |
+| `400%+` | 10 | < 0.01% | 4% / 5% / 8% / 5% | 1.55% |
+| All households | 10 | < 0.01% | 7% / 9% / 12% / 8% | 2.30% |
 
 **Area median income bands**
 
-| Band | Groups under $1,000 income | Income weight left out | Fuel weight left out | Groups with a negative cost | No valid data: income / electricity / gas / other fuel | National burden, before → after |
-|---|---|---|---|---|---|---|
-| `0-30%` | 160,344 | 3.5% | 3.4% | 0 | 14% / 19% / 24% / 16% | 16.11% → 15.60% |
-| `30-60%` | 0 | 0% | 0% | 0 | 10% / 13% / 17% / 11% | 6.05%, unchanged |
-| `60-80%` | 0 | 0% | 0% | 0 | 8% / 9% / 13% / 8% | 4.09%, unchanged |
-| `80-100%` | 0 | 0% | 0% | 0 | 7% / 8% / 11% / 7% | 3.14%, unchanged |
-| `100-150%` | 0 | 0% | 0% | 0 | 5% / 6% / 9% / 6% | 2.07%, unchanged |
-| `150%+` | 1,874 | < 0.01% | 0.02–0.11% | 15,635 | 4% / 4% / 6% / 4% | 1.36%, unchanged (+0.001) |
-| All households | 162,218 | 0.4% | 0.4% | 15,635 | 7% / 9% / 12% / 8% | 2.27%, down 0.007 points |
+| Band | Groups with a negative cost | Fuel weight left out | No valid data: income / electricity / gas / other fuel | National burden |
+|---|---|---|---|---|
+| `0-30%` | 0 | 0% | 14% / 19% / 24% / 16% | 16.11% |
+| `30-60%` | 0 | 0% | 10% / 13% / 17% / 11% | 6.05% |
+| `60-80%` | 0 | 0% | 8% / 9% / 13% / 8% | 4.09% |
+| `80-100%` | 0 | 0% | 7% / 8% / 11% / 7% | 3.14% |
+| `100-150%` | 0 | 0% | 5% / 6% / 9% / 6% | 2.07% |
+| `150%+` | 15,635 | 0.02–0.11% | 4% / 4% / 6% / 4% | 1.36% |
+| All households | 15,635 | < 0.04% | 7% / 9% / 12% / 8% | 2.28% |
 
-**Which groups and statistics this affects**
+**What the rule changes**
 
-- **The lowest band.** Nearly all the excluded groups are in `0-100%` and `0-30%`, so these bands
-  carry nearly all of the effect. The middle bands are unchanged in every file.
-- **States.** Burden in the lowest band falls in every state:
-  - `0-100%`: by 0.15 to 2.40 percentage points (median 0.93).
-  - `0-30%`: by 0.29 to 3.78 points (median 0.60).
-
-  The `150%+` AMI burden rises by at most 0.04 points, in 18 states.
-- **Counties.** Lowest-band burden changes by more than 1 point in 804 counties (`0-100%`) and
-  825 counties (`0-30%`). The largest changes are in small rural counties where these groups held
-  much of the band's income weight, up to 27 points (`0-100%`) and 35 points (`0-30%`).
-- **Overall files.** The overall files include the lowest-band groups, so they change too:
-  - Tract burden changes in 62,432 tracts, by up to 12.4 points.
-  - County burden changes by at most 0.25 points.
-  - State burden changes by at most 0.02 points.
-- **Direction.** The excluded groups have the lowest incomes and the highest burdens. Lowest-band
-  burdens are therefore lower than they would be with those households included. Read them as the
-  burden of households with an average income of at least $1,000.
+- **Poverty level files.** The 10 groups are in `400%+`. They change one state's `400%+` burden by
+  less than 0.001 points.
+- **AMI files.** The rule raises the `150%+` burden by at most 0.04 points, in 18 states. Without
+  it, 53 tract rows in that band would have a negative burden.
 - **Data coverage differs by band.** DOE has no valid value for a larger share of low-income
   households: 14–24% per measure in the lowest band, against 4–8% in the highest. Those households
-  are not in the averages either. This comes from DOE's data, not from the rules above, so
-  lowest-band averages rest on a smaller share of the band's households.
+  are not in the averages. This comes from DOE's data, not from the rule above, so lowest-band
+  averages rest on a smaller share of the band's households.
 
 ## Contact
 

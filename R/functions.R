@@ -6,54 +6,47 @@
 # explicitly, so dplyr's regrouping notice is noise
 options(dplyr.summarise.inform = FALSE)
 
-# Backstop for degenerate group incomes. With the cohort income filter below, every
-# group income is a mean of cohort incomes >= min_cohort_income, so this never binds
-# on filtered tables; it still applies to the unfiltered tables used for the regression.
+# Group incomes below this get no burden. LEAD keeps near-zero and negative cohort
+# incomes, as the LEAD tool does, so a few tract x band groups average to an income
+# at or below zero; dividing by it would give a meaningless or negative burden.
 income_floor <- 1e-9
-
-# Cohorts whose modeled average income is below this are left out of every average
-# (income and all three costs). They are near-zero or negative incomes, all in the
-# lowest band apart from a few AMI 150%+ modeling artifacts, and they gave burdens
-# in the thousands of percent. Their units still count in total_households.
-min_cohort_income <- 1000
 
 # Per-measure weights and the reason flags behind them. A measure's weight is zero
 # when its average is NA, its valid units are <= 0 (negative valid units are a raw
-# LEAD artifact; a negative weight has no meaning in a mean), its average is negative
-# (a cost cannot be negative; these are LEAD artifacts, almost all in AMI 150%+), or
-# the cohort's income is below min_cohort_income. A row dropped from one measure still
-# counts toward the others. exclude_invalid = FALSE keeps only the first two rules,
-# which is the shared rollup's method and is used for the regression check.
+# LEAD artifact; a negative weight has no meaning in a mean), or its average is a
+# negative cost (a cost cannot be negative; these are LEAD artifacts, almost all in
+# AMI 150%+). A row dropped from one measure still counts toward the others.
+# exclude_invalid = FALSE drops the negative-cost rule, which is the shared rollup's
+# method and is used for the regression check.
 add_cohort_weights <- function(cohorts, exclude_invalid = TRUE) {
   if (exclude_invalid) {
     cohorts <- cohorts %>%
       mutate(
-        low_income = case_when(is.na(avg_income) ~ FALSE, avg_income < min_cohort_income ~ TRUE, TRUE ~ FALSE),
         negative_electricity = case_when(is.na(avg_electricity_cost) ~ FALSE, avg_electricity_cost < 0 ~ TRUE, TRUE ~ FALSE),
         negative_gas = case_when(is.na(avg_gas_cost) ~ FALSE, avg_gas_cost < 0 ~ TRUE, TRUE ~ FALSE),
         negative_other_fuel = case_when(is.na(avg_other_fuel_cost) ~ FALSE, avg_other_fuel_cost < 0 ~ TRUE, TRUE ~ FALSE)
       )
   } else {
     cohorts <- cohorts %>%
-      mutate(low_income = FALSE, negative_electricity = FALSE, negative_gas = FALSE, negative_other_fuel = FALSE)
+      mutate(negative_electricity = FALSE, negative_gas = FALSE, negative_other_fuel = FALSE)
   }
 
   cohorts %>%
     mutate(
       income_w = case_when(
-        is.na(avg_income) | hincp_valid_units <= 0 | low_income ~ 0,
+        is.na(avg_income) | hincp_valid_units <= 0 ~ 0,
         TRUE ~ hincp_valid_units
       ),
       electric_w = case_when(
-        is.na(avg_electricity_cost) | elep_valid_units <= 0 | low_income | negative_electricity ~ 0,
+        is.na(avg_electricity_cost) | elep_valid_units <= 0 | negative_electricity ~ 0,
         TRUE ~ elep_valid_units
       ),
       gas_w = case_when(
-        is.na(avg_gas_cost) | gasp_valid_units <= 0 | low_income | negative_gas ~ 0,
+        is.na(avg_gas_cost) | gasp_valid_units <= 0 | negative_gas ~ 0,
         TRUE ~ gasp_valid_units
       ),
       other_fuel_w = case_when(
-        is.na(avg_other_fuel_cost) | fulp_valid_units <= 0 | low_income | negative_other_fuel ~ 0,
+        is.na(avg_other_fuel_cost) | fulp_valid_units <= 0 | negative_other_fuel ~ 0,
         TRUE ~ fulp_valid_units
       )
     )
@@ -268,7 +261,7 @@ check_rollups <- function(tables, out_col) {
 
 # Missing household counts or weights would silently blank out whole groups. Also
 # counts the rows and tracts behind each exclusion rule: negative valid units (zeroed
-# under either rule), and the low-income and negative-cost filters.
+# under either rule) and the negative-cost filter.
 cohort_audit <- function(cohorts) {
   totals <- cohorts %>%
     summarize(
@@ -286,11 +279,10 @@ cohort_audit <- function(cohorts) {
       negative_weight = hincp_valid_units < 0 | elep_valid_units < 0 | gasp_valid_units < 0 | fulp_valid_units < 0,
       negative_cost = negative_electricity | negative_gas | negative_other_fuel
     ) %>%
-    filter(negative_weight | low_income | negative_cost) %>%
+    filter(negative_weight | negative_cost) %>%
     group_by(fip) %>%
     summarize(
       negative_weight = sum(negative_weight),
-      low_income = sum(low_income),
       negative_cost = sum(negative_cost)
     ) %>%
     collect() %>%
@@ -302,10 +294,9 @@ cohort_audit <- function(cohorts) {
     missing_weights = totals$missing_weights,
     negative_weight_rows = sum(flagged_tracts$negative_weight),
     negative_weight_tracts = flagged_tracts$tract_geoid[flagged_tracts$negative_weight > 0],
-    low_income_rows = sum(flagged_tracts$low_income),
     negative_cost_rows = sum(flagged_tracts$negative_cost),
-    # Tracts where the filters can change a value; every other tract must match the unfiltered build
-    filtered_tracts = flagged_tracts$tract_geoid[flagged_tracts$low_income > 0 | flagged_tracts$negative_cost > 0]
+    # Tracts where the negative-cost filter can change a value; every other tract must match the unfiltered build
+    filtered_tracts = flagged_tracts$tract_geoid[flagged_tracts$negative_cost > 0]
   )
 }
 
@@ -325,11 +316,10 @@ check_tables <- function(tables, audit, expected, out_col, levels) {
     state = expected$states, state_band = expected$states * n_bands
   )
   households_ok <- function(df) abs(sum(df$total_households) - audit$households) < 1e-6 * audit$households
-  # Costs, total cost and burden are never negative, and no group income is below the cohort floor
+  # Costs, total cost and burden are never negative
   values_valid <- function(df) {
     all(c(df$weighted_electricity_cost, df$weighted_gas_cost, df$weighted_other_fuel_cost,
-          df$total_utility_cost, df$energy_burden) >= 0, na.rm = TRUE) &&
-      all(df$weighted_income >= min_cohort_income * (1 - 1e-12), na.rm = TRUE)
+          df$total_utility_cost, df$energy_burden) >= 0, na.rm = TRUE)
   }
   nests <- function(df) {
     all(str_sub(df$county_geoid, 1, 2) == df$state_fips) &&
@@ -340,7 +330,6 @@ check_tables <- function(tables, audit, expected, out_col, levels) {
     audit$missing_weights == 0,
     audit$negative_weight_rows == expected$negative_weight_rows,
     length(audit$negative_weight_tracts) == expected$negative_weight_tracts,
-    audit$low_income_rows == expected$low_income_rows,
     audit$negative_cost_rows == expected$negative_cost_rows,
     length(audit$filtered_tracts) == expected$filtered_tracts,
     all(map_int(tables, nrow) == expected_rows[names(tables)]),
@@ -374,8 +363,8 @@ check_tables <- function(tables, audit, expected, out_col, levels) {
 # unfiltered method. Two checks:
 #   1. The unfiltered tract table must match the rollup to floating-point noise, except
 #      in tracts with negative-weight cohorts, which the rollup keeps (loose tolerance).
-#   2. The filtered tract table must match the unfiltered one in every tract the
-#      filters do not touch, so the filters change only the tracts they should.
+#   2. The filtered tract table must match the unfiltered one in every tract without a
+#      negative cost average, so the negative-cost filter changes only those tracts.
 check_regression <- function(rollup_file, cohorts, tables, audit, loose_tolerance) {
   unfiltered_tract <- summarize_lead(cohorts, state, fip, exclude_invalid = FALSE) %>%
     add_tract_geoids()
@@ -418,8 +407,8 @@ check_regression <- function(rollup_file, cohorts, tables, audit, loose_toleranc
   )
 }
 
-# What the filters leave out, by band: rows flagged by each rule, the share of each
-# measure's weight they remove, the share of households with no valid data before any
+# What the negative-cost filter leaves out, by band: rows flagged, the share of each
+# fuel's weight it removes, the share of households with no valid data before any
 # filter, national burden before and after, and the spread of the change across
 # states. Printed by both builds; the partner README cites these numbers.
 exclusion_summary <- function(cohorts, band_col, levels) {
@@ -446,7 +435,6 @@ national_exclusions <- function(cohorts, band_col, levels) {
         households = sum(units),
         income = sum(income_w), electricity = sum(electric_w),
         gas = sum(gas_w), other_fuel = sum(other_fuel_w),
-        low_income_rows = sum(low_income),
         negative_cost_rows = sum(negative_electricity | negative_gas | negative_other_fuel)
       ) %>%
       collect() %>%
@@ -472,7 +460,7 @@ national_exclusions <- function(cohorts, band_col, levels) {
   before %>%
     select(band, households, income, electricity, gas, other_fuel) %>%
     inner_join(
-      after %>% select(band, low_income_rows, negative_cost_rows, income, electricity, gas, other_fuel),
+      after %>% select(band, negative_cost_rows, electricity, gas, other_fuel),
       by = "band", suffix = c("", "_kept")
     ) %>%
     inner_join(burden(FALSE), by = "band") %>%
@@ -480,9 +468,8 @@ national_exclusions <- function(cohorts, band_col, levels) {
     transmute(
       band = factor(band, levels = c(levels, "all")),
       households = round(households),
-      low_income_rows, negative_cost_rows,
-      # Share of each measure's valid weight the filters remove
-      pct_income_removed = 100 * (1 - income_kept / income),
+      negative_cost_rows,
+      # Share of each fuel's valid weight the negative-cost filter removes
       pct_electricity_removed = 100 * (1 - electricity_kept / electricity),
       pct_gas_removed = 100 * (1 - gas_kept / gas),
       pct_other_fuel_removed = 100 * (1 - other_fuel_kept / other_fuel),
@@ -499,11 +486,11 @@ national_exclusions <- function(cohorts, band_col, levels) {
 
 print_exclusion_summary <- function(exclusions) {
   rounded <- exclusions$national %>% mutate(across(where(is.double), ~ round(.x, 3)))
-  message("Cohorts left out of the averages, by band (percent of each measure's valid weight):")
-  print(rounded %>% select(band, households, low_income_rows, negative_cost_rows, ends_with("_removed")), width = Inf)
+  message("Negative cost averages left out of the averages, by band (percent of each fuel's valid weight):")
+  print(rounded %>% select(band, households, negative_cost_rows, ends_with("_removed")), width = Inf)
   message("Households with no valid data before any filter (percent), and national burden before and after:")
   print(rounded %>% select(band, starts_with("pct_no_valid"), energy_burden_unfiltered, energy_burden, burden_change), width = Inf)
-  message("Change in state x band burden from the filters (percentage points):")
+  message("Change in state x band burden from the negative-cost filter (percentage points):")
   print(exclusions$state %>% mutate(across(where(is.double), ~ round(.x, 3))), width = Inf)
 }
 

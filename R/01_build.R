@@ -15,8 +15,8 @@
 # Method, per area or area x FPL band:
 #   1. weighted means of income, electricity, gas and other fuel cost, each weighted
 #      by its own valid-units column (e.g. electricity cost by elep_valid_units).
-#      Cohorts with income under $1,000 are left out of every mean, and a negative
-#      cost average is left out of that cost's mean (see add_cohort_weights())
+#      A negative cost average is left out of that cost's mean (see add_cohort_weights());
+#      every income is kept, as in the LEAD tool
 #   2. total_households = sum of the generic `units` column, filtered cohorts included
 #   3. after ungroup(): total_utility_cost = electricity + gas + other fuel, and
 #      energy_burden = 100 * total_utility_cost / weighted_income
@@ -54,9 +54,9 @@ fpl_levels <- c("0-100%", "100-150%", "150-200%", "200-400%", "400%+")
 expected <- list(
   tracts = 84280, counties = 3222, states = 52,
   negative_weight_rows = 4, negative_weight_tracts = 4,
-  low_income_rows = 196592, negative_cost_rows = 10, filtered_tracts = 62432,
+  negative_cost_rows = 10, filtered_tracts = 10,
   empty_tract_band_rows = 754, empty_county_band_rows = 2,
-  na_burden_tract = 17, na_burden_tract_band = 858,
+  na_burden_tract = 17, na_burden_tract_band = 866,
   # Observed max is 0.0013 percentage points in the 4 negative-weight tracts; 1e-4 allows 0.01
   loose_burden_gap = 1e-4
 )

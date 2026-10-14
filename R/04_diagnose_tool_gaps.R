@@ -74,7 +74,9 @@ county_ami <- map_dfr(c("MI", "AL"), read_county_file, family = "AMI")
 
 # ---- Summarizers: cohort rows + grouping columns -> the four checked metrics ----
 
-# The shipped weight rule with switches, so each rule can be turned off on its own.
+# The shipped weight rule with switches, so each rule can be changed on its own.
+# income_min drops cohorts with a lower average income from every measure (the shipped
+# rule keeps every income; 1000 recomputes the rule removed on 2026-10-14).
 # weight = "units" swaps every positive weight for the cohort's units.
 rule_weights <- function(d, income_min, drop_negative_cost, weight) {
   d %>%
@@ -91,7 +93,7 @@ rule_weights <- function(d, income_min, drop_negative_cost, weight) {
     )
 }
 
-weighted_summary <- function(income_min = min_cohort_income, drop_negative_cost = TRUE, weight = "valid") {
+weighted_summary <- function(income_min = -Inf, drop_negative_cost = TRUE, weight = "valid") {
   function(d, ...) {
     d %>%
       rule_weights(income_min, drop_negative_cost, weight) %>%
@@ -127,12 +129,13 @@ ratio_summary <- function(income_denom = "hincp_valid_units",
   }
 }
 
-# Units-weighted mean of cohort burdens (an average of ratios), shipped exclusions.
+# Units-weighted mean of cohort burdens (an average of ratios), shipped exclusions plus
+# cohorts under $1,000 of income, whose burdens would otherwise be near infinite.
 # The other three metrics stay as in the shipped rule.
 cohort_burden_summary <- function(d, ...) {
   burden <- d %>%
     add_cohort_weights() %>%
-    filter(income_w > 0) %>%
+    filter(income_w > 0, avg_income >= 1000) %>%
     mutate(cohort_burden = 100 * (coalesce(avg_electricity_cost * (electric_w > 0), 0) +
       coalesce(avg_gas_cost * (gas_w > 0), 0) + coalesce(avg_other_fuel_cost * (other_fuel_w > 0), 0)) / avg_income) %>%
     group_by(...) %>%
@@ -173,7 +176,7 @@ variant_values <- function(summarizer, overall = fpl, fpl_bands = fpl, ami_bands
 
 variants <- list(
   "V0 shipped rule" = variant_values(shipped_rule),
-  "V1 no $1,000 income rule" = variant_values(weighted_summary(income_min = -Inf)),
+  "V1 former $1,000 income rule" = variant_values(weighted_summary(income_min = 1000)),
   "V2 no negative-cost rule" = variant_values(weighted_summary(drop_negative_cost = FALSE)),
   "V3 unfiltered (weighted.mean)" = variant_values(unfiltered_rule),
   "V4 ratio of raw sums" = variant_values(ratio_summary()),

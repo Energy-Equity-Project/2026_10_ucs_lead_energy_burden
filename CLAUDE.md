@@ -8,9 +8,9 @@ nine CSVs built from DOE LEAD 2022, covering the 50 states, DC and Puerto Rico:
 - Three from the AMI file: one row per tract × AMI band (505,680), per county × AMI band (19,332) and
   per state × AMI band (312). These are in addition to the FPL band files, not a replacement. There is
   no overall AMI file.
-- Cohorts with average income under $1,000 are left out of every average, and negative cost averages
-  are left out of that fuel's average. Both rules came from the 2026-10-08 methodology audit; see
-  Method notes.
+- Negative cost averages are left out of that fuel's average (2026-10-08 methodology audit). Every
+  cohort income is kept, as in the DOE LEAD tool. A $1,000 cohort income rule was removed on
+  2026-10-14 to align with the tool; see Method notes and `LEAD_TOOL_DISCREPANCIES.md`.
 
 ## Type
 Data request. This repo CONSUMES data from the shared Data/ and Cleaned_Data/ folders
@@ -67,36 +67,41 @@ active
   column. `total_households` is `sum(units)`.
 - **Weight rule (`add_cohort_weights()`), the same for every table.** A measure's weight is 0 when:
   - its average is `NA` or its valid units are `<= 0`;
-  - its cost average is `< 0` (that fuel only);
-  - the cohort's `avg_income < min_cohort_income` ($1,000), which zeroes all four measures.
+  - its cost average is `< 0` (that fuel only).
 
   Units always stay in `total_households`. `exclude_invalid = FALSE` keeps only the first rule, which is
   the shared rollup's method and is used only for the regression.
-  - The income rule hits 196,592 FPL rows (all `0-100%`) and 162,218 AMI rows (160,344 `0-30%`, 1,874
-    `150%+`).
   - The negative-cost rule hits 10 FPL rows (`400%+`) and 15,635 AMI rows (`150%+`).
   - Oversized weights (valid units > `units`: 36,706 AMI `150%+` rows, 51 FPL `400%+` rows) are
     kept by decision and documented.
-- **Effect (2026-10-08 rebuild vs the unfiltered build).**
-  - Middle bands: unchanged in every file (≤ 2e-14).
-  - National lowest band: FPL `0-100%` 19.64% → 18.74%, AMI `0-30%` 16.11% → 15.60%.
-  - Lowest band by state: lower everywhere, by up to 2.40 points (FPL) and 3.78 points (AMI).
-  - Lowest band by county: 804 FPL and 825 AMI counties move by more than 1 point, up to 27 and 35
-    points in small rural counties.
-  - Overall files: tract changes in 62,432 tracts (≤ 12.4 points), county ≤ 0.25 points, state
-    ≤ 0.02 points.
-  - All 53 former negative AMI burdens are gone.
+- **$1,000 income rule removed (2026-10-14).**
+  - The rule zeroed every measure for cohorts with `avg_income < 1000`: 196,592 FPL rows and 162,218 AMI
+    rows.
+  - The tool keeps these cohorts. Without the rule, our income matches the tool to the dollar, and tool
+    matches rise from 25 to 31 of 46.
+  - The 2026-10-14 rebuild against the 08-10-2026 files:
+    - Lowest band by state: up 0.15–2.41 points (FPL) and 0.29–3.78 points (AMI).
+    - Overall state burden: ≤ 0.017 points.
+    - Tracts: 62,425 of the 62,427 tracts with such a cohort change; every other tract and county is
+      identical.
+    - National lowest band: FPL `0-100%` 18.74% → 19.64%, AMI `0-30%` 15.60% → 16.11%.
+  - Extreme tract × band burdens return and ship as computed, with a partner README caveat: 946 FPL and
+    490 AMI rows above 100%, 21 and 14 above 1,000%, max 2,878,457% (FPL) and 40,599% (AMI).
+  - Groups with income ≤ $0 or a fraction of a cent get NA burden through the `1e-9` floor: 23 FPL and 24
+    AMI tract × band rows, 2 tracts.
+  - The negative-cost rule still prevents the 53 negative AMI burdens.
 - After `ungroup()`, `add_totals()` sets `total_utility_cost` to electricity + gas + other fuel, with a
   missing fuel counted as $0. It is `NA` when no fuel has valid units. `energy_burden = 100 *
-  total_utility_cost / weighted_income`, `NA` when income is missing or under the `1e-9` backstop.
+  total_utility_cost / weighted_income`, `NA` when income is missing or under the `1e-9` floor.
 - **Checks, identical in both scripts.**
   - `check_tables()`: structure, household totals, empty-band and blank-burden counts, and validity
-    (no negative cost or burden, every group income ≥ $1,000).
+    (no negative cost, total cost or burden).
   - `check_rollups()`: 9 re-weightings across levels and from band to overall, weights included,
     < 1e-9.
   - `check_regression()`: the unfiltered tract table matches the shared rollup exactly (~1e-16),
     except in negative-weight tracts (4 FPL ≤ 0.0013 points; 4,441 AMI ≤ 0.083 points). The filtered
-    table matches the unfiltered one in every untouched tract (21,848 FPL, 23,505 AMI).
+    table matches the unfiltered one in every tract without a negative-cost cohort (84,270 FPL, 77,863
+    AMI).
 
   Counts per family live in each script's `expected` list.
 - `reweight_to()` computes the means before summing the weight columns. `summarize()` otherwise
@@ -115,21 +120,19 @@ active
   - The tool does not update its FPL band stats when a county or tract is selected, so county and
     tract FPL band values cannot be checked against it. Only overall county and tract values are checked.
   - The tool's tract name drops the code's last two digits: tract 6871 is GEOID `…687100`.
-  - As of 2026-10-14, 25 of 46 match: state 7 of 18 (MI, AL overall and FPL bands), state × AMI 9 of
-    12, county 5 of 8 (Wayne 26163, Perry 01105), tract 4 of 8 (Perry 6871 `01105687100`, Wayne 5452
-    `26163545200`).
-  - AMI bands track the tool more closely than FPL bands. The AMI misses are MI `0-30%` (20.97 vs 22)
-    and `30-60%` (7.65 vs 7), and AL `150%+` (1.58 vs 1).
-    Our income is higher than the tool's in all six areas (+$22 to +$447, up to +1.48% in Wayne 5452),
-    and the state FPL band burdens miss by up to 1.5 points, including bands the filters don't touch.
-    MI's tool household count (4,009,261) matches the AMI file, not the FPL file.
-  - `LEAD_TOOL_DISCREPANCIES.md` catalogs every filter point and its measured effect (2026-10-14).
-    All 24 overall values are explained:
-    - The tool keeps the sub-$1,000 cohorts: unfiltered income matches it to the dollar.
-    - It rounds each fuel cost before adding them.
-    - Its MI household count is the AMI run's.
-
-    10 of 22 band burdens remain unexplained.
+  - After the 2026-10-14 rebuild without the $1,000 rule, 31 of 46 match (25 before):
+    - state 8 of 18 (MI, AL overall and FPL bands);
+    - state × AMI 9 of 12;
+    - county 7 of 8 (Wayne 26163, Perry 01105);
+    - tract 7 of 8 (Perry 6871 `01105687100`, Wayne 5452 `26163545200`).
+  - `LEAD_TOOL_DISCREPANCIES.md` catalogs every filter point and its measured effect, and
+    `R/04_diagnose_tool_gaps.R` reproduces it. The 15 misses:
+    - **MI household count (1).** The tool's 4,009,261 is the AMI file's; ours comes from the FPL file
+      (4,009,253).
+    - **Total cost (4).** The tool rounds each fuel cost before adding them, so ours differs by $1.
+    - **Band burdens (10), unexplained.** FPL: MI `0-100%`, `100-150%`, `150-200%`; AL `0-100%`,
+      `100-150%`, `150-200%`, `400%+`. AMI: MI `30-60%`, AL `0-30%`, `150%+`. They miss by up to 1.5
+      points in both directions. No cohort filter, averaging rule or county-file source reproduces them.
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
   state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
   numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows

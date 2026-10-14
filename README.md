@@ -39,28 +39,30 @@ overall and by FPL band (`fpl150`), the build works from the cohort rows:
 zero when:
 - its average is `NA`, or its valid units are `<= 0`. Negative valid units are a LEAD artifact.
 - its cost average is negative. That fuel only; the row still counts for its other measures.
-- the cohort's `avg_income` is below $1,000 (`min_cohort_income`). All four measures; the units stay
-  in `total_households`.
 
-The income rule removes 196,592 FPL cohort rows (all `0-100%`) and 162,218 AMI rows (160,344 in
-`0-30%`, 1,874 in `150%+`). These are near-zero or negative incomes that gave burdens up to
-2.9 million %. The negative-cost rule removes 10 FPL rows (`400%+`) and 15,635 AMI rows (`150%+`); in
-the AMI file they gave 53 negative tract × band burdens. Both rules lower lowest-band burdens: the
-national FPL `0-100%` burden falls from 19.64% to 18.74%, and AMI `0-30%` from 16.11% to 15.60%. The
-middle bands don't change. Cohorts whose valid units exceed their `units` (36,706 AMI `150%+` rows, 51
-FPL `400%+` rows) are kept. `outputs/README.md` has the full per-band table, which each build prints
-through `exclusion_summary()`.
+The negative-cost rule removes 10 FPL rows (`400%+`) and 15,635 AMI rows (`150%+`). In the AMI file
+these rows gave 53 negative tract × band burdens.
+
+Every cohort income is kept, including near-zero and negative ones, as in the DOE LEAD tool. A $1,000
+cohort income rule was used until 2026-10-14. It was removed because the tool keeps those cohorts; see
+`LEAD_TOOL_DISCREPANCIES.md`. National lowest-band burdens are FPL `0-100%` 19.64% and AMI `0-30%`
+16.11%.
+
+Cohorts whose valid units exceed their `units` (36,706 AMI `150%+` rows, 51 FPL `400%+` rows) are kept.
+`outputs/README.md` has the full per-band table, which each build prints through
+`exclusion_summary()`.
 
 A fuel with no valid units in a group counts as $0 in the total; a group with no valid units for any
-fuel gets no total (`NA`). Burden is `NA` when the group has no valid income. The `1e-9` income floor
-in `add_totals()` remains as a backstop. The build stops if any cohort row has a missing household
+fuel gets no total (`NA`). Burden is `NA` when the group has no valid income, or when its income is
+below the `1e-9` floor in `add_totals()` (zero, negative or a fraction of a cent: 23 FPL and 24 AMI
+tract × band rows, 2 tracts). The build stops if any cohort row has a missing household
 count or weight. Missing values are written as blank cells.
 
 **Checks.** Both scripts run the same checks from `R/functions.R`, and only the `expected` counts
 differ:
 - `check_tables()`: row counts, unique keys, GEOID widths and nesting, household totals against the
   cohorts, every band present, and empty-band and blank-burden counts. It also checks validity: no
-  negative cost, total cost or burden, and every group income ≥ $1,000.
+  negative cost, total cost or burden.
 - `check_rollups()`: re-weights every finer table up to every coarser one (< 1e-9 relative, weight
   columns included): tract → county → state, each band table → its overall table, and
   tract × band → county × band → state × band.
@@ -68,7 +70,7 @@ differ:
   rollup in `Cleaned_Data/doe/lead/` to ~1e-16. The exception is tracts with negative-weight cohorts,
   which the rollup keeps: 4 FPL tracts (≤ 0.0013 percentage points) and 4,441 AMI tracts (≤ 0.083
   points). The filtered tract table must also match the unfiltered one in every tract with no
-  filtered cohort (21,848 FPL and 23,505 AMI tracts).
+  negative-cost cohort (84,270 FPL and 77,863 AMI tracts).
 
 The state files are not rolled up from the tract or county files. They carry `state_abbr` and
 `state_name` from `tidycensus::fips_codes` and leave out the `*_households` weight columns. Every band
@@ -115,7 +117,7 @@ Archived at `s3://eep-data-requests/2026_10_ucs_lead_energy_burden/`. Get a new 
 - Connecticut counties are the 9 planning regions (09110–09190), not the 8 legacy counties.
 - Puerto Rico is included (state FIPS `72`).
 - Very small tracts can have extreme burdens. 7 tracts are above 20%, and all of them have fewer
-  than 100 households. Lowest-band tract rows can exceed 100% (423 FPL `0-100%` rows, 198 AMI `0-30%`
-  rows) even after the $1,000 income rule.
-- Lowest-band burdens exclude cohorts with average income under $1,000, so they understate burden for
-  the very poorest households.
+  than 100 households.
+- Lowest-band tract rows can be far above 100%: 945 FPL `0-100%` rows and 490 AMI `0-30%` rows. 21 FPL
+  and 14 AMI rows are above 1,000%, up to about 2.9 million % (FPL) and 40,599% (AMI). They come from
+  cohorts LEAD models with near-zero or negative income, which are kept as in the LEAD tool.

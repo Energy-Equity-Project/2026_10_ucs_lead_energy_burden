@@ -90,12 +90,15 @@ have been byte-identical across rebuilds.
 
 ## How to rebuild
 
-1. Copy `.Renviron.example` to `.Renviron` and fill in the five paths. Relative paths resolve
+1. Copy `.Renviron.example` to `.Renviron` and fill in the six paths. Relative paths resolve
    from the repo root. `.Renviron` is gitignored, and a local pre-commit hook blocks it as well.
 2. Open `2026_10_ucs_lead_energy_burden.Rproj`, or start R from the repo root, so that R reads
    `.Renviron` at startup. Restart R after editing it.
 3. Run `R/01_build.R`, which writes the six FPL-file CSVs, then `R/02_build_ami.R`, which writes the
    three AMI CSVs. Both write to `OUTPUT_DIR`, and each stops if a path is missing or any check fails.
+4. Optional: `R/03_check_lead_tool.R` compares the shipped CSVs with values read off the DOE LEAD
+   interactive tool, and `R/04_diagnose_tool_gaps.R` measures what causes the gaps (see
+   `LEAD_TOOL_DISCREPANCIES.md`). Neither writes files.
 
 ## Deliveries
 

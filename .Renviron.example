@@ -17,3 +17,7 @@ LEAD_AMI_ROLLUP_FILE=
 
 # Folder the build writes the CSVs to
 OUTPUT_DIR=
+
+# Raw DOE LEAD 2022 download folder holding the <ST>-2022-LEAD-data folders (Data_Unzipped),
+# read only by R/04_diagnose_tool_gaps.R
+LEAD_RAW_DIR=

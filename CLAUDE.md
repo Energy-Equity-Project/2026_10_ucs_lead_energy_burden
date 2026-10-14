@@ -48,12 +48,17 @@ active
   and the writes. Each reads its cohort file through arrow, aggregates during the scan and takes
   about 15–25 seconds.
 - `.Renviron` holds every file path the scripts use: `LEAD_NATIONAL_FILE`, `LEAD_ROLLUP_FILE`,
-  `LEAD_AMI_NATIONAL_FILE`, `LEAD_AMI_ROLLUP_FILE` and `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
+  `LEAD_AMI_NATIONAL_FILE`, `LEAD_AMI_ROLLUP_FILE`, `LEAD_RAW_DIR` (raw LEAD `Data_Unzipped`, used
+  only by `R/04`) and `OUTPUT_DIR`. It is never committed. `.gitignore` excludes it, and `.git/hooks/pre-commit` rejects
   it even when force-added; the hook is local and must be reinstalled after a fresh clone.
   `.Renviron.example` is the committed template. Keep file paths out of the R code.
 - `R/03_check_lead_tool.R` compares the latest shipped CSVs with values read off the DOE LEAD
   interactive tool. It reads the CSVs only, recomputes nothing and writes no files. A new check is a
-  row in `tool_values` (plus a row in `shipped_files` for a new file).
+  row in `tool_values` in `R/lead_tool_values.R` (plus a row in `shipped_files` for a new file).
+- `R/04_diagnose_tool_gaps.R` recomputes the tool values for MI and AL under variants that each turn
+  off one filter or test one hypothesis about the tool, and scores them. It reads the cohort
+  parquets, the FPL rollup, the shipped CSVs and the raw MI and AL LEAD CSVs, writes no files and
+  takes about 35 seconds. Its results are written up in `LEAD_TOOL_DISCREPANCIES.md`.
 - `outputs/README.md` is the partner-facing data dictionary and ships inside the delivery zip.
 
 ## Method notes
@@ -117,8 +122,14 @@ active
     and `30-60%` (7.65 vs 7), and AL `150%+` (1.58 vs 1).
     Our income is higher than the tool's in all six areas (+$22 to +$447, up to +1.48% in Wayne 5452),
     and the state FPL band burdens miss by up to 1.5 points, including bands the filters don't touch.
-    MI's tool household count (4,009,261) matches the AMI file, not the FPL file. The gaps are not
-    explained yet.
+    MI's tool household count (4,009,261) matches the AMI file, not the FPL file.
+  - `LEAD_TOOL_DISCREPANCIES.md` catalogs every filter point and its measured effect (2026-10-14).
+    All 24 overall values are explained:
+    - The tool keeps the sub-$1,000 cohorts: unfiltered income matches it to the dollar.
+    - It rounds each fuel cost before adding them.
+    - Its MI household count is the AMI run's.
+
+    10 of 22 band burdens remain unexplained.
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
   state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
   numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows

@@ -1,5 +1,5 @@
 # Compare the shipped UCS files with values read off the DOE LEAD interactive tool.
-# Reads only the latest shipped CSVs in OUTPUT_DIR and the tool values below; it does
+# Reads only the latest shipped CSVs in OUTPUT_DIR and R/lead_tool_values.R; it does
 # not recompute anything and writes no files.
 #
 # Phase 1: FPL, state level and state x FPL band (Michigan and Alabama).
@@ -9,7 +9,8 @@
 # Phase 4: state x AMI band burden (Michigan and Alabama).
 # The LEAD tool does not update its FPL band stats when a county or tract is selected, so
 # county and tract FPL band values are not checked against it.
-# Later phases add rows to `tool_values` and the matching file patterns to `shipped_files`.
+# Later phases add rows to `tool_values` in R/lead_tool_values.R and the matching file
+# patterns to `shipped_files`.
 #
 # Run from the repo root: Rscript R/03_check_lead_tool.R
 
@@ -26,56 +27,8 @@ if (output_dir == "") {
   stop("Missing in .Renviron: OUTPUT_DIR. Copy .Renviron.example to .Renviron, fill it in and restart R.")
 }
 
-# Values as the LEAD tool displays them (whole numbers). band = NA is the overall row.
-tool_values <- tribble(
-  ~level,  ~family, ~geoid, ~band,      ~metric,              ~tool_value, ~tool_digits,
-  "state", "fpl",   "26",   NA,         "energy_burden",      3,           0,
-  "state", "fpl",   "26",   NA,         "total_utility_cost", 2687,        0,
-  "state", "fpl",   "26",   NA,         "total_households",   4009261,     0,
-  "state", "fpl",   "26",   NA,         "weighted_income",    94973,       0,
-  "state", "fpl",   "26",   "0-100%",   "energy_burden",      23,          0,
-  "state", "fpl",   "26",   "100-150%", "energy_burden",      9,           0,
-  "state", "fpl",   "26",   "150-200%", "energy_burden",      8,           0,
-  "state", "fpl",   "26",   "200-400%", "energy_burden",      4,           0,
-  "state", "fpl",   "26",   "400%+",    "energy_burden",      2,           0,
-  "state", "fpl",   "01",   NA,         "energy_burden",      3,           0,
-  "state", "fpl",   "01",   NA,         "total_utility_cost", 2419,        0,
-  "state", "fpl",   "01",   NA,         "total_households",   1933150,     0,
-  "state", "fpl",   "01",   NA,         "weighted_income",    84282,       0,
-  "state", "fpl",   "01",   "0-100%",   "energy_burden",      20,          0,
-  "state", "fpl",   "01",   "100-150%", "energy_burden",      8,           0,
-  "state", "fpl",   "01",   "150-200%", "energy_burden",      6,           0,
-  "state", "fpl",   "01",   "200-400%", "energy_burden",      4,           0,
-  "state", "fpl",   "01",   "400%+",    "energy_burden",      1,           0,
-  "county", "fpl",  "26163", NA,        "energy_burden",      3,           0,
-  "county", "fpl",  "26163", NA,        "total_utility_cost", 2835,        0,
-  "county", "fpl",  "26163", NA,        "total_households",   688461,      0,
-  "county", "fpl",  "26163", NA,        "weighted_income",    82303,       0,
-  "county", "fpl",  "01105", NA,        "energy_burden",      6,           0,
-  "county", "fpl",  "01105", NA,        "total_utility_cost", 2521,        0,
-  "county", "fpl",  "01105", NA,        "total_households",   3075,        0,
-  "county", "fpl",  "01105", NA,        "weighted_income",    43119,       0,
-  "tract", "fpl",   "01105687100", NA,  "energy_burden",      7,           0,
-  "tract", "fpl",   "01105687100", NA,  "total_utility_cost", 2671,        0,
-  "tract", "fpl",   "01105687100", NA,  "total_households",   1154,        0,
-  "tract", "fpl",   "01105687100", NA,  "weighted_income",    36089,       0,
-  "tract", "fpl",   "26163545200", NA,  "energy_burden",      13,          0,
-  "tract", "fpl",   "26163545200", NA,  "total_utility_cost", 3533,        0,
-  "tract", "fpl",   "26163545200", NA,  "total_households",   869,         0,
-  "tract", "fpl",   "26163545200", NA,  "weighted_income",    27926,       0,
-  "state", "ami",   "26",   "0-30%",    "energy_burden",      22,          0,
-  "state", "ami",   "26",   "30-60%",   "energy_burden",      7,           0,
-  "state", "ami",   "26",   "60-80%",   "energy_burden",      5,           0,
-  "state", "ami",   "26",   "80-100%",  "energy_burden",      4,           0,
-  "state", "ami",   "26",   "100-150%", "energy_burden",      3,           0,
-  "state", "ami",   "26",   "150%+",    "energy_burden",      2,           0,
-  "state", "ami",   "01",   "0-30%",    "energy_burden",      22,          0,
-  "state", "ami",   "01",   "30-60%",   "energy_burden",      8,           0,
-  "state", "ami",   "01",   "60-80%",   "energy_burden",      5,           0,
-  "state", "ami",   "01",   "80-100%",  "energy_burden",      4,           0,
-  "state", "ami",   "01",   "100-150%", "energy_burden",      3,           0,
-  "state", "ami",   "01",   "150%+",    "energy_burden",      1,           0
-)
+# Values as the LEAD tool displays them, shared with R/04_diagnose_tool_gaps.R
+source("R/lead_tool_values.R")
 
 # Shipped files to check: the file-name suffix after the date, the geography key
 # column and the band column (NA for overall files)

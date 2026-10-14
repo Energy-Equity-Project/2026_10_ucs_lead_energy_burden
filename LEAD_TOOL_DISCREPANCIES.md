@@ -2,6 +2,20 @@
 
 Measured 2026-10-14.
 
+**Update, 2026-10-14: the overall state file is built from the AMI cohort file (B10 resolved).**
+- `R/02_build_ami.R` now writes the overall state file; `R/01_build.R` builds its FPL state table as a
+  check target only.
+- `R/03`: MI households now match (4,009,261). **46 of 46 headline values match under the tool's
+  rule** (64 of 64 with the fuel burdens), and 36 of 46 rounded as a whole. MI and AL income, cost and
+  burden are unchanged at the tool's precision (MI income +0.00001%, cost −$0.003; AL identical).
+- Elsewhere, five states move. Burden changes by CT −0.276 points, CA −0.101, HI −0.013, NY −0.013 and
+  MA −0.012, and households by +3.7%, +3.3%, +1.0%, +0.4% and +0.5%. Every other state moves by
+  < 0.001 points and < 0.02% of households.
+- The state file now equals the sum of the state AMI bands. The state FPL bands and the county file
+  no longer sum to it.
+- In `R/04`, V0 (shipped) takes its state overall from the AMI file, so V0 and V3 now differ only
+  there. The other variants keep the FPL state overall.
+
 **Update, 2026-10-14: the $1,000 income rule (B2) has been removed.** The files were rebuilt and 31 of 46
 values now match, with 25 before. The catalog and the scores below record the measurement made
 against the earlier 08-10-2026 outputs, which still had the rule. In today's `R/04` output, V0 (shipped)
@@ -97,7 +111,7 @@ when the item is switched off or tested, measured against the shipped rule's 25.
 | B7 | `functions.R:93-96` | 1e-9 income floor → NA burden | 2 tracts; 23 FPL / 24 AMI tract × band rows (since B2 was removed) | none of the checked areas | not a cause |
 | B8 | `functions.R:63` | `total_households = sum(units)`, including zero-weight cohorts | — | 5 of 6 counts match; MI is the B10 issue | consistent with the tool |
 | B9 | `functions.R:121-137` | County = first 5 digits of the tract GEOID; CT planning regions | — | the checked county and tract keys all resolve and match | not a cause here |
-| B10 | `01_build.R:66` | The overall files come from the FPL cohort file | MI: 4,009,253 FPL vs 4,009,261 AMI | MI households match with the AMI file (V9a, V9b) | **causes the MI household gap**; the tool's MI count is the AMI run's |
+| B10 | `02_build_ami.R` (state), `01_build.R` (tract, county) | The overall tract and county files come from the FPL cohort file; the overall state file from the AMI file since 2026-10-14 | MI: 4,009,253 FPL vs 4,009,261 AMI | MI households match with the AMI file (V9a, V9b, and V0 since the change) | **caused the MI household gap**; the tool's MI count is the AMI run's. **Resolved 2026-10-14** by building the state file from the AMI file |
 
 ### Comparison (`R/03_check_lead_tool.R`)
 | ID | Where | What it drops or changes | Effect on tool values | Verdict |
@@ -202,8 +216,8 @@ other fuel burdens to whole percents, then adds them.
 All 18 fuel burdens match, and in all 6 bands the tool's own fuel burdens add up to its total.
 
 ### What remains
-- **MI household count.** The tool's 4,009,261 is the AMI file's; ours comes from the FPL file
-  (4,009,253). See B10.
+Nothing among the 46 headline values. The MI household count (B10) was resolved on 2026-10-14 by
+building the overall state file from the AMI file.
 
 Every band burden is explained. The band-income and electricity-cost multipliers in `R/04` (C4 section)
 are kept as a check. With the corrected readings, every band's income range includes 1 except MI
@@ -221,5 +235,7 @@ the main reason our overall values differed from the tool, so it was removed on 
   stay unrounded:
   - 4 total costs are $1 apart, because the tool adds rounded fuel costs (C1b).
   - 6 band burdens differ by up to about 1 point, because the tool adds rounded fuel burdens (C4).
-  - The MI household count comes from the tool's AMI file (B10).
+  - The MI household count came from the tool's AMI file (B10). Since 2026-10-14 the overall state file
+    is built from the AMI file, so it matches. The overall tract and county files stay FPL-based; the
+    checked counties and tracts are identical in both files.
   - Five band totals were misread and have been corrected (C3).

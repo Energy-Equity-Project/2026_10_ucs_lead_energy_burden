@@ -10,7 +10,7 @@ Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientist
 | `dd-mm-yyyy-ucs-lead-2022-tract-energy-burden-fpl.csv` | One row per census tract and Federal Poverty Level band, 421,400 rows (84,280 tracts × 5 bands) |
 | `dd-mm-yyyy-ucs-lead-2022-county-energy-burden.csv` | One row per county or county equivalent, 3,222 rows |
 | `dd-mm-yyyy-ucs-lead-2022-county-energy-burden-fpl.csv` | One row per county and Federal Poverty Level band, 16,110 rows (3,222 counties × 5 bands) |
-| `dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv` | One row per state, 52 rows |
+| `dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv` | One row per state, 52 rows, from DOE's area median income data |
 | `dd-mm-yyyy-ucs-lead-2022-state-energy-burden-fpl.csv` | One row per state and Federal Poverty Level band, 260 rows (52 states × 5 bands) |
 | `dd-mm-yyyy-ucs-lead-2022-tract-energy-burden-ami.csv` | One row per census tract and Area Median Income band, 505,680 rows (84,280 tracts × 6 bands) |
 | `dd-mm-yyyy-ucs-lead-2022-county-energy-burden-ami.csv` | One row per county and Area Median Income band, 19,332 rows (3,222 counties × 6 bands) |
@@ -19,9 +19,12 @@ Prepared by the Energy Equity Project (EEP) for the Union of Concerned Scientist
 All nine files cover the 50 states, the District of Columbia and Puerto Rico. Each date prefix is
 the day the file was built.
 
-There is no overall area median income file. The three overall files (tract, county and state, with
-no band) come from DOE's poverty level data, so they are not the totals of the area median income
-bands. See "AMI files come from a separate DOE LEAD file" below.
+The overall state file comes from DOE's area median income data, the data behind DOE's LEAD Tool's
+state household counts, so it is the total of the state area median income bands. The overall tract
+and county files come from DOE's poverty level data, so they are the totals of the tract and county
+poverty level bands. In five states the two DOE files differ by more than 0.1% of households, so
+there the state file is not the total of the state poverty level bands or of the state's counties.
+See "AMI files come from a separate DOE LEAD file" below.
 
 ## Data dictionary
 
@@ -88,8 +91,7 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   be higher because low-income households carry the highest burdens.
 - **Comparing with DOE's interactive LEAD Tool.** EEP checked the overall values for Michigan,
   Alabama, two counties and two tracts against the tool. Income, household counts and burden match the
-  tool at its display precision. The one exception is Michigan's household count, where the tool uses
-  DOE's area median income file. Total cost differs by at most $1, because the tool rounds each fuel
+  tool at its display precision. Total cost differs by at most $1, because the tool rounds each fuel
   before adding them. The tool's poverty level and AMI band burdens are built the same way: it rounds
   each fuel's burden to a whole percent and shows their sum. A band can therefore differ from these
   files by up to about 1 point while its electricity, gas and other fuel burdens all agree. Built that
@@ -98,11 +100,14 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
   files.
 - **State values come from the household groups, not from the tract or county files.** Each state
   average is computed from all LEAD household groups in the state, in the same way as the tract and
-  county averages. A state's burden is therefore not the average of its tract or county burdens.
+  county averages. A state's burden is therefore not the average of its tract or county burdens. The
+  overall state file uses the household groups in DOE's area median income file; the state poverty
+  level file uses those in the poverty level file.
 - **Poverty level values use the same method within each band.** Each state and poverty level row
   is computed from only that band's household groups in the state. Its burden is the band's average
   energy cost divided by its average income. The five band burdens do not average to the state
-  burden; the state value combines the bands' costs and incomes, weighted by households.
+  burden. The overall state value combines the area median income bands' costs and incomes, weighted
+  by households.
 - **Tract and county poverty level values work the same way.** Each tract or county and poverty
   level row is computed from only that band's household groups in the area, so the five band
   burdens do not average to the tract or county burden.
@@ -127,17 +132,23 @@ Missing values are blank cells. `read.csv()` reads blank numeric cells as `NA`.
 - **AMI files come from a separate DOE LEAD file, and their household counts do not match the
   other files exactly.** DOE publishes the AMI and poverty level data as separate files, and in
   some areas they estimate different numbers of households. Nationally, the AMI bands total
-  127,451,762 households, against 126,917,028 in the overall and poverty level files (0.4% more).
+  127,451,762 households, against 126,917,028 in the poverty level files and the overall tract and
+  county files (0.4% more).
   The gap is concentrated in California, New York, Massachusetts, Hawaii and Connecticut:
   - 6,258 tracts (7.4%) differ by more than 0.1%, by up to 93%.
   - 29 counties differ by more than 0.1%.
   - Five states differ by more than 0.1%, led by Connecticut (3.7%) and California (3.3%).
 
-  Summing an area's AMI bands therefore does not always reproduce the `total_households` in the
-  overall tract, county or state files. **The overall files are poverty level totals, not AMI
-  totals.** Compare an AMI band with other AMI bands or areas, not with the overall files, and do not
-  combine the AMI files with the poverty level files in a single calculation. No overall AMI file is
-  delivered.
+  Summing a tract's or county's AMI bands therefore does not always reproduce the
+  `total_households` in the overall tract or county files. **The overall tract and county files are
+  poverty level totals; the overall state file is the AMI total.** It is built from the AMI file
+  because DOE's LEAD Tool shows the AMI file's state household counts (Michigan: 4,009,261 against
+  4,009,253 in the poverty level file). Compared with a state file built from the poverty level
+  data, it changes Connecticut's burden by −0.28 points, California's by −0.10 and Hawaii's, New
+  York's and Massachusetts' by about −0.01; every other state changes by less than 0.001 points.
+  As a result, the state poverty level bands and the county file sum to the state file's households
+  only to within 0.02% in 47 states, and differ by 0.4% to 3.7% in those five. Do not combine the AMI files with the poverty level files in a single calculation.
+  There are no overall tract or county AMI files.
 - **DOE's `150%+` AMI records have modeling artifacts.** The DOE AMI file has three kinds of
   implausible household group, almost all in the `150%+` band:
   - 7,992 groups in 4,441 tracts (mostly in New York, California and Massachusetts) have a negative

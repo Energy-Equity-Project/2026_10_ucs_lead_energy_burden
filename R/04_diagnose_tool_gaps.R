@@ -162,11 +162,12 @@ long_values <- function(df, level, family, geo_col, geo_fmt) {
     pivot_longer(all_of(metrics), names_to = "metric", values_to = "value")
 }
 
-# Overall values from `overall` (the FPL file unless stated); band values from each family's own file.
-# Tract-level sources set has_tracts = FALSE.
-variant_values <- function(summarizer, overall = fpl, fpl_bands = fpl, ami_bands = ami, has_tracts = TRUE) {
+# Overall values from `overall` (the FPL file unless stated), the state overall from
+# `state_overall`; band values from each family's own file. Tract-level sources set has_tracts = FALSE.
+variant_values <- function(summarizer, overall = fpl, fpl_bands = fpl, ami_bands = ami, has_tracts = TRUE,
+                           state_overall = overall) {
   bind_rows(
-    summarizer(overall, state) %>% long_values("state", "fpl", "state", "%02.0f"),
+    summarizer(state_overall, state) %>% long_values("state", "fpl", "state", "%02.0f"),
     summarizer(fpl_bands, state, band) %>% long_values("state", "fpl", "state", "%02.0f"),
     summarizer(overall, county_fip) %>% long_values("county", "fpl", "county_fip", "%05.0f"),
     if (has_tracts) summarizer(overall, fip) %>% long_values("tract", "fpl", "fip", "%011.0f"),
@@ -174,8 +175,10 @@ variant_values <- function(summarizer, overall = fpl, fpl_bands = fpl, ami_bands
   )
 }
 
+# The shipped overall state file comes from the AMI file (R/02_build_ami.R), so V0 takes its
+# state overall from `ami`. The other variants keep the FPL state overall, as first measured.
 variants <- list(
-  "V0 shipped rule" = variant_values(shipped_rule),
+  "V0 shipped rule" = variant_values(shipped_rule, state_overall = ami),
   "V1 former $1,000 income rule" = variant_values(weighted_summary(income_min = 1000)),
   "V2 no negative-cost rule" = variant_values(weighted_summary(drop_negative_cost = FALSE)),
   "V3 unfiltered (weighted.mean)" = variant_values(unfiltered_rule),
@@ -203,7 +206,7 @@ comparison <- imap_dfr(variants, ~ tool_values %>% filter(metric %in% metrics) %
 
 # ---- Sanity checks: the diagnostic must reproduce both existing methods ----
 
-# V0 must equal the shipped CSVs (also confirms the 08-10-2026 outputs are current)
+# V0 must equal the shipped CSVs (also confirms the latest outputs are current)
 latest_file <- function(suffix) {
   files <- list.files(paths[["OUTPUT_DIR"]], pattern = paste0("^\\d{2}-\\d{2}-\\d{4}-", suffix, "\\.csv$"))
   file.path(paths[["OUTPUT_DIR"]], files[which.max(as.Date(str_sub(files, 1, 10), format = "%d-%m-%Y"))])
@@ -232,7 +235,7 @@ message("V0 vs shipped CSVs: max relative gap ", signif(max(v0_check$rel_gap), 3
 stopifnot(max(v0_check$rel_gap) < 1e-9)
 
 # The switchable rule with its defaults must equal the shipped rule
-v0_switch <- variant_values(weighted_summary()) %>% inner_join(variants[["V0 shipped rule"]], by = key_cols)
+v0_switch <- variant_values(weighted_summary(), state_overall = ami) %>% inner_join(variants[["V0 shipped rule"]], by = key_cols)
 stopifnot(max(abs(v0_switch$value.x - v0_switch$value.y) / abs(v0_switch$value.y), na.rm = TRUE) < 1e-9)
 
 # V3 and V4 must equal the shared rollup for the two checked tracts
@@ -508,8 +511,9 @@ multipliers %>%
 
 # Every state burden the tool shows, rounded as a whole and as the sum of nearest-rounded
 # fuel burdens. The tool's band panel follows the second; its overall values the first.
+# The overall state values come from the AMI file, as shipped.
 state_burdens <- bind_rows(
-  shipped_rule(fpl, state) %>% mutate(family = "fpl", band = NA_character_),
+  shipped_rule(ami, state) %>% mutate(family = "fpl", band = NA_character_),
   shipped_rule(fpl, state, band) %>% mutate(family = "fpl", band = as.character(band)),
   shipped_rule(ami, state, band) %>% mutate(family = "ami", band = as.character(band))
 ) %>%

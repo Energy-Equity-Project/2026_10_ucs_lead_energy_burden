@@ -14,9 +14,9 @@
 
 | Dataset | Path | Version / vintage | Notes |
 |---|---|---|---|
-| DOE LEAD 2022 FPL (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-national.parquet` | 2022 release, downloaded 2025-08-06 | Only input to the six FPL-file outputs |
+| DOE LEAD 2022 FPL (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-national.parquet` | 2022 release, downloaded 2025-08-06 | Only input to the five FPL-file outputs |
 | DOE LEAD 2022 FPL (tract rollup) | `../../Cleaned_Data/doe/lead/census_tract-lead-2022-energy-burden.parquet` | same | Regression check only |
-| DOE LEAD 2022 AMI (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-national.parquet` | same download, cleaned 2026-10-08 | Only input to the three AMI outputs |
+| DOE LEAD 2022 AMI (cohort level) | `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-national.parquet` | same download, cleaned 2026-10-08 | Only input to the three AMI band outputs and the overall state file |
 | DOE LEAD 2022 AMI (tract rollup) | `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-energy-burden.parquet` | same | Regression check only |
 
 ## Method
@@ -78,13 +78,20 @@ table gets all of its bands. A band with no LEAD cohorts in the area is filled i
 and `NA` averages, cost and burden: 754 tract rows in 358 tracts and 2 county rows for FPL, and 935
 tract rows and 1 county row for AMI.
 
-The three AMI files (`R/02_build_ami.R`) apply the same method to LEAD's AMI cohort file, grouped by
-`ami150` (six bands, `0-30%` to `150%+`), with `ami` in place of `fpl`. The AMI file is a separate
+The three AMI band files (`R/02_build_ami.R`) apply the same method to LEAD's AMI cohort file, grouped
+by `ami150` (six bands, `0-30%` to `150%+`), with `ami` in place of `fpl`. The AMI file is a separate
 LEAD run with its own household counts. It holds 127,451,762 households against 126,917,028 in the
 FPL file. 6,258 tracts (7.4%) differ by more than 0.1%, mostly in CA (51% of them), NY (29%) and MA
-(11%), then HI and CT. **The shipped overall files are FPL-based, so the AMI bands don't sum to them,
-and no overall AMI file is delivered.** The AMI build makes overall AMI tables in memory as check
-targets only.
+(11%), then HI and CT.
+
+**The overall state file comes from the AMI build (since 2026-10-14).** The LEAD tool's state household
+counts are the AMI run's (MI 4,009,261 against the FPL file's 4,009,253), so `R/02_build_ami.R` writes
+`tables$state` and `R/01_build.R` builds its FPL state table as a check target only. The state file
+therefore equals the sum of the state AMI bands, but not of the state FPL bands or the county file.
+Against the FPL-based state file it replaces, five states move: burden CT −0.276 points, CA −0.101, HI
+−0.013, NY −0.013 and MA −0.012, with households +3.7%, +3.3%, +1.0%, +0.4% and +0.5%. Every other
+state's burden moves by less than 0.001 points and its households by less than 0.02%. The overall tract
+and county files stay FPL-based; their AMI tables are check targets only.
 
 Arrow sums the cohort rows in parallel, so a rebuild can change the county, county × band, state and
 state × band values in the last digits (observed ≤ 1e-13 relative). The tract and tract × band files
@@ -96,8 +103,8 @@ have been byte-identical across rebuilds.
    from the repo root. `.Renviron` is gitignored, and a local pre-commit hook blocks it as well.
 2. Open `2026_10_ucs_lead_energy_burden.Rproj`, or start R from the repo root, so that R reads
    `.Renviron` at startup. Restart R after editing it.
-3. Run `R/01_build.R`, which writes the six FPL-file CSVs, then `R/02_build_ami.R`, which writes the
-   three AMI CSVs. Both write to `OUTPUT_DIR`, and each stops if a path is missing or any check fails.
+3. Run `R/01_build.R`, which writes the five FPL-file CSVs, then `R/02_build_ami.R`, which writes the
+   three AMI band CSVs and the overall state CSV. Both write to `OUTPUT_DIR`, and each stops if a path is missing or any check fails.
 4. Optional: `R/03_check_lead_tool.R` compares the shipped CSVs with values read off the DOE LEAD
    interactive tool, and `R/04_diagnose_tool_gaps.R` measures what causes the gaps (see
    `LEAD_TOOL_DISCREPANCIES.md`). Neither writes files.

@@ -3,7 +3,9 @@
 # not recompute anything from cohorts and writes no files. The only derived values are
 # the fuel burdens, each shipped fuel cost as a percent of shipped income.
 #
-# Phase 1: FPL, state level and state x FPL band (Michigan and Alabama).
+# Phase 1: state level and state x FPL band (Michigan and Alabama). The overall state file
+# comes from the AMI cohort file (R/02_build_ami.R); it keeps the `fpl` key because the
+# tool's overall rows in `tool_values` are labeled `fpl`.
 # Phase 2: county level, overall values only (Wayne County, MI 26163; Perry County, AL 01105).
 # Phase 3: tract level, overall values only (Perry tract 6871 01105687100; Wayne tract 5452
 # 26163545200). The tool's tract name drops the code's last two digits (6871 = 687100).
@@ -37,7 +39,8 @@ if (output_dir == "") {
 source("R/lead_tool_values.R")
 
 # Shipped files to check: the file-name suffix after the date, the geography key
-# column and the band column (NA for overall files)
+# column and the band column (NA for overall files). The overall state file is built from
+# the AMI cohort file but keyed `fpl`, like the tool's overall rows.
 shipped_files <- tribble(
   ~level,  ~family, ~suffix,                                ~geoid_col,   ~band_col,
   "state", "fpl",   "ucs-lead-2022-state-energy-burden",     "state_fips", NA,

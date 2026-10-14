@@ -4,16 +4,19 @@
 # steps with the shared helpers in R/functions.R; only the config and the files
 # written differ.
 #
-# Produces three national tables (50 states + DC + PR), each aggregated directly
+# Produces four national tables (50 states + DC + PR), each aggregated directly
 # from the AMI cohort rows:
 #   dd-mm-yyyy-ucs-lead-2022-tract-energy-burden-ami.csv   one row per tract x AMI band
 #   dd-mm-yyyy-ucs-lead-2022-county-energy-burden-ami.csv  one row per county x AMI band
+#   dd-mm-yyyy-ucs-lead-2022-state-energy-burden.csv       one row per state
 #   dd-mm-yyyy-ucs-lead-2022-state-energy-burden-ami.csv   one row per state x AMI band
 #
 # The AMI file is a separate LEAD model run with its own household counts: 6,258
 # tracts (7.4%) differ from the FPL file by more than 0.1%, mostly in CA, NY, MA, HI
-# and CT. These bands therefore do not sum to the overall FPL-based tract, county and
-# state files. The overall AMI tables are built here as check targets but not written.
+# and CT. The overall state file comes from this file because the LEAD tool's state
+# household counts are the AMI run's, so it equals the sum of the state AMI bands but
+# not of the FPL bands. The overall tract and county files stay FPL-based; their AMI
+# tables are built here as check targets but not written.
 #
 # Run from the repo root: Rscript R/02_build_ami.R
 # File paths come from the repo's .Renviron (gitignored); copy .Renviron.example
@@ -66,7 +69,7 @@ lead_ami_cohorts <- arrow::open_dataset(lead_ami_national_file) %>%
   ) %>%
   mutate(county_fip = floor(fip / 1e6))
 
-# Build all six tables from the cohorts directly; only the three band tables are written
+# Build all six tables from the cohorts directly; the band tables and the state table are written
 tables <- build_tables(lead_ami_cohorts, band_col, out_col, ami_levels)
 
 # Checks: the same structural, validity, re-weighting and regression checks as the FPL build
@@ -83,4 +86,5 @@ dir.create(output_dir, showWarnings = FALSE)
 
 write_output(select_output(tables$tract_band, "tract", out_col), output_dir, paste0(run_date, "-ucs-lead-2022-tract-energy-burden-ami.csv"))
 write_output(select_output(tables$county_band, "county", out_col), output_dir, paste0(run_date, "-ucs-lead-2022-county-energy-burden-ami.csv"))
+write_output(select_output(tables$state, "state"), output_dir, paste0(run_date, "-ucs-lead-2022-state-energy-burden.csv"))
 write_output(select_output(tables$state_band, "state", out_col), output_dir, paste0(run_date, "-ucs-lead-2022-state-energy-burden-ami.csv"))

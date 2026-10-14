@@ -3,11 +3,12 @@
 ## Purpose
 The Union of Concerned Scientists (UCS) asked for national energy burden data. EEP is sending
 nine CSVs built from DOE LEAD 2022, covering the 50 states, DC and Puerto Rico:
-- Six from the FPL file: one row per census tract (84,280), per tract × FPL band (421,400), per county
-  (3,222), per county × FPL band (16,110), per state (52) and per state × FPL band (260).
-- Three from the AMI file: one row per tract × AMI band (505,680), per county × AMI band (19,332) and
-  per state × AMI band (312). These are in addition to the FPL band files, not a replacement. There is
-  no overall AMI file.
+- Five from the FPL file: one row per census tract (84,280), per tract × FPL band (421,400), per county
+  (3,222), per county × FPL band (16,110) and per state × FPL band (260).
+- Four from the AMI file: one row per tract × AMI band (505,680), per county × AMI band (19,332), per
+  state × AMI band (312) and per state (52). The AMI band files are in addition to the FPL band files,
+  not a replacement. The overall state file comes from the AMI file (2026-10-14) because the LEAD tool's
+  state household counts are the AMI run's; the overall tract and county files stay FPL-based.
 - Negative cost averages are left out of that fuel's average (2026-10-08 methodology audit). Every
   cohort income is kept, as in the DOE LEAD tool. A $1,000 cohort income rule was removed on
   2026-10-14 to align with the tool; see Method notes and `LEAD_TOOL_DISCREPANCIES.md`.
@@ -29,10 +30,10 @@ active
 
 ## Data Dependencies
 - Cleaned: `../../Cleaned_Data/doe/lead/census_tract-lead-2022-national.parquet`. Cohort-level
-  DOE LEAD 2022 FPL file (download 2025-08-06), 20,272,616 rows. The only input to the six FPL-file outputs.
+  DOE LEAD 2022 FPL file (download 2025-08-06), 20,272,616 rows. The only input to the five FPL-file outputs.
 - Cleaned: `../../Cleaned_Data/doe/lead/census_tract-ami-lead-2022-national.parquet`. Cohort-level
   DOE LEAD 2022 AMI file (same download, cleaned 2026-10-08), 24,817,921 rows. The only input to the
-  three AMI outputs.
+  three AMI band outputs and the overall state file.
 - Cleaned: `../../Cleaned_Data/doe/lead/census_tract-lead-2022-energy-burden.parquet` and
   `census_tract-ami-lead-2022-energy-burden.parquet`. The shared FPL and AMI tract rollups. They are
   read only for the regression checks and do not feed the outputs.
@@ -43,7 +44,8 @@ active
   `select_output()`), the checks (`cohort_audit()`, `check_tables()`, `check_rollups()`,
   `check_regression()`), the summaries (`exclusion_summary()`, `print_build_summary()`) and
   `write_output()`. Change the method here, once, for both band families.
-- `R/01_build.R` (FPL, writes six files) and `R/02_build_ami.R` (AMI, writes the three band files) have
+- `R/01_build.R` (FPL, writes five files) and `R/02_build_ami.R` (AMI, writes the three band files and
+  the overall state file) have
   the same steps: config and `expected` counts, then `build_tables()`, the four checks, the summaries
   and the writes. Each reads its cohort file through arrow, aggregates during the scan and takes
   about 15–25 seconds.
@@ -113,8 +115,14 @@ active
   and `NA` values. Connecticut appears as its 9 planning regions (09110–09190).
 - **AMI vs FPL.** The AMI file is a separate LEAD run: 127,451,762 households against 126,917,028.
   6,258 tracts (7.4%) differ by more than 0.1%, mostly CA (51%), NY (29%) and MA (11%), then HI and
-  CT. AMI bands don't sum to the shipped FPL-based overall files, and no overall AMI file is written.
-  The AMI build makes them in memory as check targets only.
+  CT.
+  - **The overall state file is AMI-based (2026-10-14).** `R/02` writes `tables$state`; `R/01` builds
+    its FPL state table as a check target only. It equals the state AMI band sums, not the state FPL
+    band sums or the county file. Against the FPL-based file: burden CT −0.276 points, CA −0.101, HI,
+    NY and MA about −0.013; every other state < 0.001 points and < 0.02% of households.
+  - The overall tract and county files stay FPL-based; their AMI tables are check targets only.
+  - `R/04`'s V0 takes its state overall from the AMI file (`state_overall = ami`) so it equals the
+    shipped files. The other variants keep the FPL state overall, as first measured.
 - **Checks against the LEAD interactive tool (`R/03_check_lead_tool.R`).** The tool shows whole
   numbers, so a value matches when ours rounds to it.
   - The tool does not update its FPL band stats when a county or tract is selected, so county and
@@ -123,14 +131,14 @@ active
   - **Corrected readings.** On re-checking the tool (2026-10-14), five band totals had been misread:
     - AL FPL `0-100%` 20 → 21, `100-150%` 8 → 9, `150-200%` 6 → 7;
     - MI FPL `0-100%` 23 → 24, `150-200%` 8 → 7.
-  - **Results** (14-10-2026 files, rebuilt without the $1,000 rule):
-    - Rounding our values as a whole, 35 of 46 headline values match (25 before the rebuild): state 12
-      of 18, state × AMI 9 of 12, county 7 of 8 (Wayne 26163, Perry 01105), tract 7 of 8 (Perry 6871
+  - **Results** (14-10-2026 files, rebuilt without the $1,000 rule and with the AMI-based state file):
+    - Rounding our values as a whole, 36 of 46 headline values match (25 before the rebuild, 35 before
+      the AMI state file): state 13 of 18, state × AMI 9 of 12, county 7 of 8 (Wayne 26163, Perry 01105), tract 7 of 8 (Perry 6871
       `01105687100`, Wayne 5452 `26163545200`).
     - 18 per-fuel band burdens (electric, gas, other fuel, for MI and AL FPL `0-100%`, `100-150%`,
       `150-200%`) all match.
-    - Built the way the tool builds them (03's `tool_rule`), **45 of 46** headline values match, and
-      63 of 64 with the fuel burdens.
+    - Built the way the tool builds them (03's `tool_rule`), **46 of 46** headline values match, and
+      64 of 64 with the fuel burdens.
   - `LEAD_TOOL_DISCREPANCIES.md` catalogs every filter point and display rule, and
     `R/04_diagnose_tool_gaps.R` reproduces it. The tool's display rules, none of which should change
     the shipped (unrounded) files:
@@ -154,8 +162,9 @@ active
         `100-150%`; AL AMI `0-30%`, `150%+`; MI AMI `30-60%`.
       - Overall burdens are rounded as a whole. The fuel rule would break the AL state, Perry 6871 and
         Wayne 5452 overall values.
-  - **The one remaining miss:** MI's household count. The tool's 4,009,261 is the AMI file's; ours comes
-    from the FPL file (4,009,253).
+  - **MI's household count, resolved 2026-10-14.** The tool's 4,009,261 is the AMI file's; the FPL file
+    has 4,009,253. The overall state file is now built from the AMI file, so it matches. MI and AL
+    income, cost and burden match the tool from either file.
 - Arrow's parallel sums are not order-deterministic, so rebuilds change the county, county × band,
   state and state × band CSVs in the last digits (observed ≤ 1e-13 relative). Compare rebuilds
   numerically, not byte for byte. Two arrow `summarize()` calls on the same data can also return rows

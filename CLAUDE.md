@@ -129,7 +129,19 @@ active
     `R/04_diagnose_tool_gaps.R` reproduces it. The 15 misses:
     - **MI household count (1).** The tool's 4,009,261 is the AMI file's; ours comes from the FPL file
       (4,009,253).
-    - **Total cost (4).** The tool rounds each fuel cost before adding them, so ours differs by $1.
+    - **Total cost (4), a display artifact, not a data gap.** The tool rounds electricity, gas and
+      other fuel to the dollar, then adds the rounded values. Our `total_utility_cost` adds the
+      unrounded fuels and is rounded only for the comparison, so the two can differ by $1.
+      - Each fuel cost matches the tool. Adding our fuel costs rounded first reproduces all 6 tool
+        totals.
+      - Don't change the shipped totals to match.
+
+      | Area | Tool | Ours | Our fuels, rounded and added |
+      |---|---|---|---|
+      | MI | 2,687 | 2,687.64 | 1,430 + 1,181 + 76 = 2,687 |
+      | AL | 2,419 | 2,419.62 | 2,041 + 358 + 20 = 2,419 |
+      | Wayne 26163 | 2,835 | 2,835.67 | 1,639 + 1,181 + 15 = 2,835 |
+      | Wayne 5452 `26163545200` | 3,533 | 3,532.04 | 2,028 + 1,486 + 19 = 3,533 |
     - **Band burdens (10), unexplained.** FPL: MI `0-100%`, `100-150%`, `150-200%`; AL `0-100%`,
       `100-150%`, `150-200%`, `400%+`. AMI: MI `30-60%`, AL `0-30%`, `150%+`. They miss by up to 1.5
       points in both directions. No cohort filter, averaging rule or county-file source reproduces them.

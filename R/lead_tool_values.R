@@ -3,6 +3,8 @@
 #
 # The tool shows whole numbers (tool_digits = 0). band = NA is the overall row. The
 # tool's tract name drops the code's last two digits (tract 6871 = GEOID ...687100).
+# The tool's total_utility_cost is the sum of its rounded fuel costs, so ours can miss it
+# by $1 (MI, AL, Wayne 26163, Wayne 5452). See LEAD_TOOL_DISCREPANCIES.md.
 tool_values <- tribble(
   ~level,  ~family, ~geoid, ~band,      ~metric,              ~tool_value, ~tool_digits,
   "state", "fpl",   "26",   NA,         "energy_burden",      3,           0,

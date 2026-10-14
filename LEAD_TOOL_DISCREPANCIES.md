@@ -33,6 +33,15 @@ raw DOE CSVs to the comparison, and measures each one's effect on the 46 tool va
      +0.05% to +1.48% higher.
    - The tool's total cost is the sum of the three fuel costs, each rounded to the dollar first. With the
      unfiltered data, that reproduces all 6 totals; summing before rounding reproduces only 2.
+     - The 4 shipped totals that miss are each $1 off. This is a display artifact: each fuel cost
+       matches the tool, and the shipped totals stay unrounded.
+
+     | Area | Tool | Shipped | Shipped fuels, rounded and added |
+     |---|---|---|---|
+     | MI | 2,687 | 2,687.64 | 1,430 + 1,181 + 76 = 2,687 |
+     | AL | 2,419 | 2,419.62 | 2,041 + 358 + 20 = 2,419 |
+     | Wayne 26163 | 2,835 | 2,835.67 | 1,639 + 1,181 + 15 = 2,835 |
+     | Wayne 5452 `26163545200` | 3,533 | 3,532.04 | 2,028 + 1,486 + 19 = 3,533 |
    - MI's household count (4,009,261) is the AMI file's, in both the tract and county files. The FPL file
      has 4,009,253. AL, Wayne and Perry are identical in all four files.
    - The overall burdens already match (6 of 6).

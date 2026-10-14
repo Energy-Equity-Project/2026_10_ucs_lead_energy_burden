@@ -19,7 +19,8 @@ Measured 2026-10-14.
 **Update, 2026-10-14: the $1,000 income rule (B2) has been removed.** The files were rebuilt and 31 of 46
 values now match, with 25 before. The catalog and the scores below record the measurement made
 against the earlier 08-10-2026 outputs, which still had the rule. In today's `R/04` output, V0 (shipped)
-equals V3 (unfiltered) at all 46 keys, and V1 recomputes the former rule (25 of 46). Line references
+equals V3 (unfiltered) at all 46 keys, and V1 recomputes the former rule (25 of 46 with the readings
+of the time; see "Variant scores" for the current scores). Line references
 are to the code after the removal.
 
 **Update, 2026-10-14: band readings corrected, fuel burdens added, band rounding rule found.**
@@ -135,26 +136,39 @@ when the item is switched off or tested, measured against the shipped rule's 25.
 | T7 | Different data vintage | Income equals ours to the dollar in all six areas | ruled out |
 
 ## Variant scores (matches under `round()`)
+Re-run 2026-10-14 against the 14-10-2026 files: the shipped rule without the $1,000 income rule, the
+overall state file from the AMI file and the corrected band readings (C3). Each value is rounded as a
+whole, so V0's 10 misses are the 6 band burdens and 4 total costs the tool builds from rounded fuels
+(C4, C1b).
+
 | Variant | All | State FPL (18) | State AMI (12) | County (8) | Tract (8) |
 |---|---|---|---|---|---|
-| V0 shipped rule | 25 / 46 | 7 | 9 | 5 | 4 |
-| V1 no $1,000 income rule (now the shipped rule) | 31 / 46 | 8 | 9 | 7 | 7 |
-| V2 no negative-cost rule | 25 / 46 | 7 | 9 | 5 | 4 |
-| V3 unfiltered (`weighted.mean`) | 31 / 46 | 8 | 9 | 7 | 7 |
-| V4 ratio of raw sums (shared rollup method) | 31 / 46 | 8 | 9 | 7 | 7 |
-| V5 income rule at ≤ $0 | 24 / 46 | 6 | 9 | 5 | 4 |
+| V0 shipped rule (state overall from the AMI file) | 36 / 46 | 13 | 9 | 7 | 7 |
+| V1 former $1,000 income rule | 28 / 46 | 10 | 9 | 5 | 4 |
+| V2 no negative-cost rule | 35 / 46 | 12 | 9 | 7 | 7 |
+| V3 unfiltered (`weighted.mean`) | 35 / 46 | 12 | 9 | 7 | 7 |
+| V4 ratio of raw sums (shared rollup method) | 35 / 46 | 12 | 9 | 7 | 7 |
+| V5 income rule at ≤ $0 | 29 / 46 | 11 | 9 | 5 | 4 |
 | V6 costs over all households | 25 / 46 | 9 | 6 | 5 | 5 |
-| V7 everything over all households | 25 / 46 | 8 | 10 | 4 | 3 |
-| V8 mean of cohort burdens | 16 / 46 | 4 | 7 | 3 | 2 |
-| V9a overall from AMI file, shipped rule | 26 / 46 | 8 | 9 | 5 | 4 |
-| V9b overall from AMI file, unfiltered | 32 / 46 | 9 | 9 | 7 | 7 |
-| V10a county files, ratio of sums | 24 / 38 | 8 | 9 | 7 | — |
-| V10b county files, shipped rule | 20 / 38 | 6 | 9 | 5 | — |
-| V10c AMI county file overall, ratio | 25 / 38 | 9 | 9 | 7 | — |
+| V7 everything over all households | 27 / 46 | 10 | 10 | 4 | 3 |
+| V8 mean of cohort burdens | 25 / 46 | 8 | 7 | 5 | 5 |
+| V9a overall from AMI file, shipped rule | 36 / 46 | 13 | 9 | 7 | 7 |
+| V9b overall from AMI file, unfiltered | 36 / 46 | 13 | 9 | 7 | 7 |
+| V10a county files, ratio of sums | 28 / 38 | 12 | 9 | 7 | — |
+| V10b county files, shipped rule | 28 / 38 | 12 | 9 | 7 | — |
+| V10c AMI county file overall, ratio | 29 / 38 | 13 | 9 | 7 | — |
 
-V9b misses 4 costs. The unfiltered FPL-file costs, with each fuel rounded before summing (C1b), match
-all 6. Combining the two (unfiltered, fuels rounded first, MI households from the AMI file) gives
-**36 of 46**: all 24 overall values and 12 of 22 bands. This was not run as a single variant on the AMI-file costs.
+- Only V0 takes its state overall from the AMI file. V2, V3 and V4 take it from the FPL file, so they
+  miss MI's household count and score one below V0. The filters themselves change none of the 46
+  values.
+- V9a, V9b and V10c, the other variants with AMI-file overall values, also get MI's households and
+  tie with V0.
+- **Built the tool's way (R/03's `tool_rule`), V0 matches 46 of 46.**
+- `floor()` scores lower in every variant (V0 24, V3 24), and rounding half up equals `round()`
+  everywhere (C1).
+- **First measurement:** against the 08-10-2026 outputs (with the $1,000 rule) and before the readings
+  were corrected, the shipped rule scored 25 of 46 and the unfiltered method 31. The catalog's
+  "Effect" column records those first-measured scores.
 
 ## Band burdens: the tool totals rounded fuel burdens
 Two things explained the band gaps:

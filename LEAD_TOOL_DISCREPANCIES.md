@@ -139,6 +139,32 @@ all 6. Combining the two (unfiltered, fuels rounded first, MI households from th
 | AL AMI `0-30%` | 22 | 21.81 | 22.58 |
 | AL AMI `150%+` | 1 | 1.58 | 1.58 |
 
+### Smallest possible gap, by size
+The tool shows whole numbers, so a displayed 6 can be any value from 5.5 to 6.5. The last column is
+how far the shipped value lies outside that range: the smallest the real gap can be. Values are from
+the 14-10-2026 state × band files, to three decimals.
+
+| Band family | State | Band | Tool | Shipped | Smallest possible gap |
+|---|---|---|---|---|---|
+| FPL | AL | `0-100%` | 20 | 21.520 | 1.02 |
+| FPL | AL | `100-150%` | 8 | 9.480 | 0.98 |
+| FPL | MI | `100-150%` | 9 | 10.050 | 0.55 |
+| FPL | MI | `0-100%` | 23 | 23.996 | 0.50 |
+| FPL | MI | `150-200%` | 8 | 7.205 | 0.30 (shipped is lower) |
+| FPL | AL | `400%+` | 1 | 1.695 | 0.20 |
+| FPL | AL | `150-200%` | 6 | 6.527 | 0.03 |
+| AMI | MI | `30-60%` | 7 | 7.646 | 0.15 |
+| AMI | AL | `150%+` | 1 | 1.584 | 0.08 |
+| AMI | AL | `0-30%` | 22 | 22.580 | 0.08 |
+
+- **Near misses.** AL FPL `150-200%`, AL AMI `0-30%` and `150%+`, and MI AMI `30-60%` are each within
+  0.15 points of the tool's range. A small difference in method or data run could explain them.
+- **Real gaps.** The FPL `0-100%` and `100-150%` bands in both states are 0.5 to 1 point or more
+  above the tool, even in the best case.
+- **No common direction.** The shipped value is higher in 9 bands and lower only in MI FPL `150-200%`.
+  Within MI, `100-150%` is high and the next band up is low. One filter or scaling difference would move
+  neighbouring bands the same way, so these gaps point to something else.
+
 Our unfiltered band values roll up exactly to overall values that match the tool. If the tool's band
 panel used the same cohorts and method, it would show our values, so it must use an input or method
 we haven't identified. The next step that could settle this

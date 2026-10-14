@@ -255,7 +255,7 @@ Both shares are national.
 
 ## Contact
 
-Rahul Agrawal Bejarano, data@energyequityproject.org
+Energy Equity Project, data@energyequityproject.org
 
 ## Suggested citation
 

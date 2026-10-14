@@ -163,26 +163,28 @@ floor (23 FPL and 24 AMI rows) and groups with no valid fuel data. Every county 
 ### Build checks
 
 `R/01_build.R` and `R/02_build_ami.R` run the same checks from `R/functions.R`, and stop before
-writing if any fails:
+writing if any fails.
 
-- **`check_tables()`**: row counts, unique keys, GEOID widths and nesting, household totals equal to the
-  cohort total, every band present, the empty-band and missing-burden counts above, and no negative
-  cost, total cost or burden.
-- **`check_rollups()`**: every table is built independently from the cohorts, so each finer table
-  re-weighted up to a coarser one must reproduce it. For a coarser group $G$ made of finer groups $g$:
+**`check_tables()`**: row counts, unique keys, GEOID widths and nesting, household totals equal to the
+cohort total, every band present, the empty-band and missing-burden counts above, and no negative
+cost, total cost or burden.
 
-  $$
-  \bar{x}_{G,m} = \frac{\sum_{g \in G} W_{g,m}\,\bar{x}_{g,m}}{\sum_{g \in G} W_{g,m}},
-  \qquad W_{g,m} = \sum_{i \in g} w_{i,m}
-  $$
+**`check_rollups()`**: every table is built independently from the cohorts, so each finer table
+re-weighted up to a coarser one must reproduce it. For a coarser group $G$ made of finer groups $g$:
 
-  This is checked to a relative gap under $10^{-9}$ for 9 pairs: tract → county → state, each band
-  table → its overall table, and tract × band → county × band → state × band.
-- **`check_regression()`**: the tract table rebuilt without the negative-cost rule must match EEP's
-  shared tract rollup to about $10^{-16}$. The exception is tracts with negative valid counts, which
-  the rollup keeps: 4 FPL tracts (within 0.0013 points) and 4,441 AMI tracts (within 0.083 points). The
-  shipped tract table must also equal the unfiltered one in every tract without a negative-cost
-  cohort.
+$$
+\bar{x}_{G,m} = \frac{\sum_{g \in G} W_{g,m}\,\bar{x}_{g,m}}{\sum_{g \in G} W_{g,m}},
+\qquad W_{g,m} = \sum_{i \in g} w_{i,m}
+$$
+
+This is checked to a relative gap under $10^{-9}$ for 9 pairs: tract → county → state, each band
+table → its overall table, and tract × band → county × band → state × band.
+
+**`check_regression()`**: the tract table rebuilt without the negative-cost rule must match EEP's
+shared tract rollup to about $10^{-16}$. The exception is tracts with negative valid counts, which
+the rollup keeps: 4 FPL tracts (within 0.0013 points) and 4,441 AMI tracts (within 0.083 points). The
+shipped tract table must also equal the unfiltered one in every tract without a negative-cost
+cohort.
 
 Arrow adds the cohort rows in parallel, so a rebuild can change county and state values in the last
 digits (relative changes of about $10^{-13}$ or less). Compare rebuilds numerically, not byte for byte.
@@ -212,9 +214,9 @@ builds two kinds of value from rounded parts, and R/03 also scores each of those
 builds it:
 
 $$
-\text{tool total cost} = \sum_{f} \operatorname{round}\!\left(\bar{c}^{\,f}_g\right)
+\text{tool total cost} = \sum_{f} \text{round}\left(\bar{c}^{\,f}_g\right)
 \qquad\qquad
-\text{tool band burden} = \sum_{f} \operatorname{round}\!\left(100 \times \frac{\bar{c}^{\,f}_g}{\bar{y}_g}\right)
+\text{tool band burden} = \sum_{f} \text{round}\left(100 \times \frac{\bar{c}^{\,f}_g}{\bar{y}_g}\right)
 $$
 
 where *f* runs over electricity, gas and other fuel. Overall (unbanded) burdens are rounded once, as
